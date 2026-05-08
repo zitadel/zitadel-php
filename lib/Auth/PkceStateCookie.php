@@ -28,7 +28,9 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class PkceStateCookie
 {
-    private function __construct() {}
+    private function __construct()
+    {
+    }
 
     private const string COOKIE_NAME = '__nextgen_pkce';
     private const int COOKIE_TTL = 600;
@@ -95,7 +97,6 @@ final class PkceStateCookie
             return null;
         }
 
-        /** @var array<string, string>|null $data */
         $data = json_decode($plain, true);
         if (
             !is_array($data) ||

@@ -8,8 +8,7 @@ composer.phar
 
 .env
 
-devbox.json
-devbox.lock
+devbox.d/
 .devbox
 package.xml
 

@@ -41,7 +41,8 @@ final readonly class ZitadelFilter implements FilterInterface
     public function __construct(
         private ZitadelConfig  $config,
         private TokenValidator $validator,
-    ) {}
+    ) {
+    }
 
     /**
      * Intercepts the request before routing.

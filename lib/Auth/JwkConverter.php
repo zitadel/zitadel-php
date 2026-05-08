@@ -16,7 +16,9 @@ namespace Zitadel\Sdk\Auth;
  */
 final class JwkConverter
 {
-    private function __construct() {}
+    private function __construct()
+    {
+    }
 
     private const array CURVE_OIDS = [
         'P-256' => "\x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07",

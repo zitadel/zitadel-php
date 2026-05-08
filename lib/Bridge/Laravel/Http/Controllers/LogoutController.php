@@ -19,7 +19,9 @@ use Zitadel\Sdk\Config\ZitadelConfig;
  */
 readonly class LogoutController
 {
-    public function __construct(private ZitadelConfig $config) {}
+    public function __construct(private ZitadelConfig $config)
+    {
+    }
 
     public function __invoke(Request $request): RedirectResponse
     {

@@ -17,7 +17,9 @@ use Zitadel\Sdk\Exception\PkceException;
  */
 final class PkceFlow
 {
-    private function __construct() {}
+    private function __construct()
+    {
+    }
 
     /**
      * Generates a cryptographically random code verifier.
@@ -91,7 +93,7 @@ final class PkceFlow
      * @param ZitadelConfig $config   Middleware configuration.
      * @param string        $code     Authorization code from the callback query string.
      * @param string        $verifier Code verifier from the PKCE state cookie.
-     * @return array{access_token: string, token_type: string, expires_in: int}
+     * @return array<string, mixed>
      * @throws PkceException When the HTTP request fails, the response body is not valid
      *   JSON, or the response contains an OAuth error field.
      */

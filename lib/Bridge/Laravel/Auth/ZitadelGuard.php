@@ -31,7 +31,9 @@ class ZitadelGuard implements Guard
     private ?ZitadelUser $user = null;
 
     /** @param Request $request The current Illuminate HTTP request. */
-    public function __construct(private readonly Request $request) {}
+    public function __construct(private readonly Request $request)
+    {
+    }
 
     #[\Override]
     public function check(): bool

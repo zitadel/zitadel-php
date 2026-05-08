@@ -56,7 +56,7 @@ abstract class AbstractIntegrationSpec extends TestCase
     /**
      * Makes a simple GET request to the fixture app.
      *
-     * @return array{status: int, body: string, location: string|null, cookies: array}
+     * @return array{status: int, body: string, location: string|null, headers: string}
      */
     protected function get(string $path, bool $followRedirects = true): array
     {

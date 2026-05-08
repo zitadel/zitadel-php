@@ -28,12 +28,20 @@ final class JwksCacheTest extends TestCase
         self::assertNull($key);
     }
 
-    public function testReturnsNullForNonJsonResponse(): void
+    public function testCacheMissReturnsNull(): void
     {
-        // A URL that returns non-JSON (e.g. a redirect to login)
-        // We can't easily mock cURL here; this tests the code path when json_validate fails.
-        // Using a data URI isn't supported by cURL; test via a simple HTTP server would be
-        // in the spec suite. Marked as coverage for the null-return contract.
-        self::assertTrue(true);
+        // Full JWKS-fetch tests (live HTTP) are in the spec suite.
+        // This confirms the cache returns null for a non-existent unreachable endpoint,
+        // exercising the cURL failure path.
+        $cache = new JwksCache();
+        $key   = $cache->getPublicKey(
+            'https://0.0.0.0:1/no-such-jwks',
+            'any-kid',
+            'RS256',
+            300,
+            1,
+        );
+
+        self::assertNull($key);
     }
 }

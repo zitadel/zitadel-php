@@ -57,7 +57,8 @@ readonly class ZitadelPlugin
     public function __construct(
         private ZitadelConfig  $config,
         private TokenValidator $validator,
-    ) {}
+    ) {
+    }
 
     /**
      * Fires before the Phalcon router handles the request.

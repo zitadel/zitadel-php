@@ -75,12 +75,10 @@ final class ZitadelServiceProvider extends ServiceProvider
 
         $this->app->singleton(JwksCache::class);
 
-        $this->app->singleton(TokenValidator::class, function ($app) {
-            return new TokenValidator(
-                $app->make(ZitadelConfig::class),
-                $app->make(JwksCache::class),
-            );
-        });
+        $this->app->singleton(TokenValidator::class, fn ($app) => new TokenValidator(
+            $app->make(ZitadelConfig::class),
+            $app->make(JwksCache::class),
+        ));
     }
 
     #[\Override]
@@ -97,8 +95,6 @@ final class ZitadelServiceProvider extends ServiceProvider
 
         $router->pushMiddlewareToGroup('web', ZitadelMiddleware::class);
 
-        Auth::extend('zitadel', static function ($app) {
-            return new ZitadelGuard($app['request']);
-        });
+        Auth::extend('zitadel', static fn ($app) => new ZitadelGuard($app['request']));
     }
 }

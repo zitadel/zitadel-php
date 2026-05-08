@@ -61,7 +61,8 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         private ZitadelConfig            $config,
         private TokenValidator           $validator,
         private ResponseFactoryInterface $responseFactory,
-    ) {}
+    ) {
+    }
 
     #[\Override]
     public function process(
@@ -260,6 +261,7 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         return false;
     }
 
+    /** @param string[] $routes */
     private function matchesRoutes(string $path, array $routes): bool
     {
         if ($routes === []) {

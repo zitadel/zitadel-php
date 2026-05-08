@@ -7,8 +7,8 @@
 >
     <title>Zitadel PHP SDK</title>
     <paths>
-        <docs>./build/docs</docs>
-        <cache>./build/.phpdoc/cache</cache>
+        <output>build/docs</output>
+        <cache>build/.phpdoc/cache</cache>
     </paths>
     <version number="1.0.0">
         <folder>latest</folder>
@@ -18,12 +18,8 @@
             </source>
             <ignore hidden="true">
                 <path>vendor</path>
+                <path>lib/Bridge</path>
             </ignore>
         </api>
-        <guide format="markdown">
-            <source dsn=".">
-                <path>docs</path>
-            </source>
-        </guide>
     </version>
 </phpdocumentor>

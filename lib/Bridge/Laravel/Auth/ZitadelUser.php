@@ -17,7 +17,9 @@ use Zitadel\Sdk\Auth\Claims;
 readonly class ZitadelUser implements Authenticatable
 {
     /** @param Claims $claims The validated JWT claims for this user. */
-    public function __construct(public Claims $claims) {}
+    public function __construct(public Claims $claims)
+    {
+    }
 
     #[\Override]
     public function getAuthIdentifierName(): string

@@ -26,7 +26,8 @@ readonly class CallbackController
     public function __construct(
         private ZitadelConfig  $config,
         private TokenValidator $validator,
-    ) {}
+    ) {
+    }
 
     public function __invoke(Request $request): RedirectResponse|Response
     {

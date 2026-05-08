@@ -20,7 +20,7 @@ namespace Zitadel\Sdk\Auth;
  * performance. Set `$jwksTtlSeconds` conservatively if key rotation is frequent.
  * The cache is safe to share across requests — keys are read-only once fetched.
  */
-final class JwksCache
+final class JwksCache implements JwksCacheInterface
 {
     /**
      * In-process key store.
@@ -48,6 +48,7 @@ final class JwksCache
      * @param int         $timeoutSeconds cURL timeout in seconds.
      * @return \OpenSSLAsymmetricKey|null Null when no matching key found or unreachable.
      */
+    #[\Override]
     public function getPublicKey(
         string $jwksUri,
         ?string $kid,

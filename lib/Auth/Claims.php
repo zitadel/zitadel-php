@@ -46,5 +46,6 @@ readonly class Claims
         public ?string $givenName   = null,
         public ?string $familyName  = null,
         public array   $payload     = [],
-    ) {}
+    ) {
+    }
 }

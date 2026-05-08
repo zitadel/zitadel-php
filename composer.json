@@ -51,7 +51,8 @@
         "chat": "https://discord.com/servers/zitadel-927474939156643850"
     },
     "scripts": {
-        "test": "phpunit --coverage-html=build/coverage/html --coverage-clover=build/coverage/clover.xml --log-junit=build/reports/junit.xml",
+        "test": "phpunit --testsuite=tests --coverage-html=build/coverage/html --coverage-clover=build/coverage/clover.xml --log-junit=build/reports/junit.xml",
+        "spec": "phpunit --testsuite=specs --log-junit=build/reports/junit-spec.xml",
         "rector": "rector process",
         "phpstan": "phpstan analyse --memory-limit=-1",
         "format": "php-cs-fixer fix",

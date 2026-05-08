@@ -34,7 +34,8 @@ readonly class ZitadelMiddleware
     public function __construct(
         private ZitadelConfig  $config,
         private TokenValidator $validator,
-    ) {}
+    ) {
+    }
 
     #[\Override]
     public function handle(Request $request, Closure $next): SymfonyResponse

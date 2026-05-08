@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.10.7/.schema/devbox.schema.json",
+  "packages": [
+    "php@8.5",
+    "php85Extensions.xdebug@latest",
+    "lefthook@latest"
+  ],
+  "env": {
+    "XDEBUG_MODE": "coverage"
+  },
+  "shell": {
+    "init_hook": [
+      "lefthook install",
+      "composer install"
+    ],
+    "scripts": {
+      "format": [
+        "composer format"
+      ],
+      "test": [
+        "composer test"
+      ],
+      "check": [
+        "composer rector",
+        "composer phpstan"
+      ],
+      "docgen": [
+        "$(pwd)/vendor/bin/phpdoc --config=$(pwd)/phpdoc.xml"
+      ],
+      "depcheck": [
+        "composer depcheck"
+      ]
+    }
+  }
+}

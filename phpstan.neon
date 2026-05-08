@@ -4,3 +4,7 @@ parameters:
     - lib
     - test
     - spec
+  excludePaths:
+    - lib/Bridge
+    - spec/fixtures
+  treatPhpDocTypesAsCertain: false

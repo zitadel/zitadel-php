@@ -25,7 +25,9 @@ final class ZitadelHolder
 {
     private static ?Claims $current = null;
 
-    private function __construct() {}
+    private function __construct()
+    {
+    }
 
     /**
      * Sets the claims for the current request. Called only by {@see ZitadelFilter}.

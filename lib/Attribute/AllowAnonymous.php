@@ -37,4 +37,6 @@ namespace Zitadel\Sdk\Attribute;
  *   use `ignoredRoutes` instead
  */
 #[\Attribute(\Attribute::TARGET_CLASS | \Attribute::TARGET_METHOD)]
-final class AllowAnonymous {}
+final class AllowAnonymous
+{
+}

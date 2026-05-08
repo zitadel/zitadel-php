@@ -43,7 +43,8 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
     public function __construct(
         private ZitadelConfig  $config,
         private TokenValidator $validator,
-    ) {}
+    ) {
+    }
 
     /**
      * @return bool false stops the Micro pipeline and sends the response

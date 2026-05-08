@@ -44,7 +44,8 @@ readonly class ZitadelListener implements EventSubscriberInterface
     public function __construct(
         private ZitadelConfig  $config,
         private TokenValidator $validator,
-    ) {}
+    ) {
+    }
 
     #[\Override]
     public static function getSubscribedEvents(): array

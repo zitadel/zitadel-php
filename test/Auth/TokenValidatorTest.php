@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Zitadel\Sdk\Auth\Algorithm;
 use Zitadel\Sdk\Auth\Claims;
 use Zitadel\Sdk\Auth\JwksCache;
+use Zitadel\Sdk\Auth\JwksCacheInterface;
 use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\TokenType;
 use Zitadel\Sdk\Auth\TokenValidator;
@@ -200,32 +201,47 @@ final class TokenValidatorTest extends TestCase
         self::assertNull($validator->validate($token));
     }
 
-    private function buildMockCache(array $jwks, string $expectedUri, ?string $kid): JwksCache
+    /**
+     * @param array<string, mixed> $jwks
+     */
+    private function buildMockCache(array $jwks, string $expectedUri, ?string $kid): \Zitadel\Sdk\Auth\JwksCacheInterface
     {
-        // Build a partial mock that overrides only getPublicKey
-        $mock = $this->getMockBuilder(JwksCache::class)
-            ->onlyMethods(['getPublicKey'])
-            ->getMock();
+        /** @var array<array<string, mixed>> $keyList */
+        $keyList = $jwks['keys'] ?? [];
 
-        $keys = array_filter($jwks['keys'], static function (array $key) use ($kid) {
+        $keys = array_filter($keyList, static function (array $key) use ($kid): bool {
             if (($key['use'] ?? '') !== 'sig') {
                 return false;
             }
             return $kid === null || ($key['kid'] ?? null) === $kid;
         });
 
-        $key = array_values($keys)[0] ?? null;
-        if ($key === null) {
-            $mock->method('getPublicKey')->willReturn(null);
-        } else {
+        $matchedKey = array_values($keys)[0] ?? null;
+        $openSslKey = null;
+
+        if ($matchedKey !== null) {
             try {
-                $openSslKey = \Zitadel\Sdk\Auth\JwkConverter::toKey($key);
-                $mock->method('getPublicKey')->willReturn($openSslKey);
+                $openSslKey = \Zitadel\Sdk\Auth\JwkConverter::toKey($matchedKey);
             } catch (\InvalidArgumentException) {
-                $mock->method('getPublicKey')->willReturn(null);
+                $openSslKey = null;
             }
         }
 
-        return $mock;
+        return new class ($openSslKey) implements \Zitadel\Sdk\Auth\JwksCacheInterface {
+            public function __construct(private readonly ?\OpenSSLAsymmetricKey $key)
+            {
+            }
+
+            #[\Override]
+            public function getPublicKey(
+                string $jwksUri,
+                ?string $kid,
+                string $alg,
+                int $ttlSeconds,
+                int $timeoutSeconds,
+            ): ?\OpenSSLAsymmetricKey {
+                return $this->key;
+            }
+        };
     }
 }

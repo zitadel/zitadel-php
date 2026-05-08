@@ -53,7 +53,8 @@ readonly class ZitadelBootstrap
         private ZitadelConfig            $config,
         private TokenValidator           $validator,
         private ResponseFactoryInterface $responseFactory,
-    ) {}
+    ) {
+    }
 
     /**
      * Returns the configured {@see ZitadelMiddleware} for direct use in the

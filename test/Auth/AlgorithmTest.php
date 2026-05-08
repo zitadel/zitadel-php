@@ -16,6 +16,7 @@ final class AlgorithmTest extends TestCase
         self::assertSame($expected, $algorithm->opensslAlgo());
     }
 
+    /** @return array<int, array{Algorithm, int}> */
     public static function opensslAlgoProvider(): array
     {
         return [
@@ -34,6 +35,7 @@ final class AlgorithmTest extends TestCase
         self::assertSame($expected, $algorithm->isEc());
     }
 
+    /** @return array<int, array{Algorithm, bool}> */
     public static function isEcProvider(): array
     {
         return [

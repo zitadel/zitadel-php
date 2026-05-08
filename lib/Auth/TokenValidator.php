@@ -33,13 +33,14 @@ use Zitadel\Sdk\Config\ZitadelConfig;
 readonly class TokenValidator
 {
     /**
-     * @param ZitadelConfig $config Configuration for issuer, algorithms, audience, etc.
-     * @param JwksCache     $cache  Shared JWKS key cache (typically a singleton).
+     * @param ZitadelConfig        $config Configuration for issuer, algorithms, audience, etc.
+     * @param JwksCacheInterface   $cache  Shared JWKS key cache (typically a singleton).
      */
     public function __construct(
-        private ZitadelConfig $config,
-        private JwksCache     $cache,
-    ) {}
+        private ZitadelConfig      $config,
+        private JwksCacheInterface $cache,
+    ) {
+    }
 
     /**
      * Validates the token and returns its claims.
@@ -63,10 +64,6 @@ readonly class TokenValidator
         // Steps 2–3 — base64url decode
         $headerJson  = self::base64urlDecode($headerB64);
         $payloadJson = self::base64urlDecode($payloadB64);
-
-        if ($headerJson === null || $payloadJson === null) {
-            return null;
-        }
 
         // Step 4 — json_validate + json_decode header and payload
         if (!json_validate($headerJson) || !json_validate($payloadJson)) {
@@ -108,7 +105,7 @@ readonly class TokenValidator
         // Step 9 — validate typ (case-insensitive)
         $typ = isset($header['typ']) ? strtolower((string) $header['typ']) : null;
         $allowed = array_map(
-            static fn(TokenType $t): string => strtolower($t->value),
+            static fn (TokenType $t): string => strtolower($t->value),
             $this->config->allowedTokenTypes
         );
         if ($typ === null || !in_array($typ, $allowed, true)) {
@@ -132,10 +129,6 @@ readonly class TokenValidator
         // Step 11 — verify signature
         $signedInput = $headerB64 . '.' . $payloadB64;
         $signature   = self::base64urlDecodeRaw($sigB64);
-
-        if ($signature === null) {
-            return null;
-        }
 
         if ($algorithm->isEc()) {
             $signature = self::p1363ToDer($signature);
@@ -209,17 +202,15 @@ readonly class TokenValidator
         );
     }
 
-    private static function base64urlDecode(string $input): ?string
+    private static function base64urlDecode(string $input): string
     {
-        $result = base64_decode(
+        return (string) base64_decode(
             strtr($input, '-_', '+/') . str_repeat('=', (4 - strlen($input) % 4) % 4),
             strict: false
         );
-
-        return $result !== false ? $result : null;
     }
 
-    private static function base64urlDecodeRaw(string $input): ?string
+    private static function base64urlDecodeRaw(string $input): string
     {
         return self::base64urlDecode($input);
     }
