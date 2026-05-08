@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% block content %}
+    <section>
+        <h2>Quick Start</h2>
+        <ol>
+            <li>Install: <code>composer require zitadel/zitadel-php</code></li>
+            <li>Set environment variables: <code>ZITADEL_ISSUER_URL</code>, <code>ZITADEL_CLIENT_ID</code>, <code>ZITADEL_REDIRECT_URI</code>, <code>ZITADEL_COOKIE_SECRET</code></li>
+            <li>Follow the guide for your framework below.</li>
+        </ol>
+    </section>
+
+    <section>
+        <h2>Framework Guides</h2>
+        <table class="phpdocumentor-table">
+            <thead>
+                <tr><th>Framework</th><th>Integration</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><a href="docs/laravel.html">Laravel</a></td><td>Auto-discovered ServiceProvider, Auth guard, <code>auth()-&gt;user()</code></td></tr>
+                <tr><td><a href="docs/symfony.html">Symfony</a></td><td>Bundle + EventListener, <code>?Claims $claims</code> controller injection</td></tr>
+                <tr><td><a href="docs/yii.html">Yii 3</a></td><td>PSR-15 pipeline, <code>$request-&gt;getAttribute('zitadel.claims')</code></td></tr>
+                <tr><td><a href="docs/slim.html">Slim 4</a></td><td>PSR-15 native, no bridge, <code>$app-&gt;add(...)</code></td></tr>
+                <tr><td><a href="docs/mezzio.html">Mezzio</a></td><td>PSR-15 native, no bridge, <code>$app-&gt;pipe(...)</code></td></tr>
+                <tr><td><a href="docs/codeigniter.html">CodeIgniter 4</a></td><td>FilterInterface, <code>ZitadelHolder::claims()</code></td></tr>
+                <tr><td><a href="docs/phalcon.html">Phalcon</a></td><td>Micro MiddlewareInterface / MVC beforeHandleRequest</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>API Reference</h2>
+
+        {% set node = project.namespace %}
+
+        {{
+        include(
+            'components/table-of-contents.html.twig',
+            {
+                'node': project.namespace,
+                'namespaces': usesNamespaces or not usesPackages ? node.children : [],
+                'packages': usesPackages ? project.package.children : []
+            }
+        )
+        }}
+        {{ include('components/constants.html.twig', {'node': project.namespace}) }}
+        {{ include('components/functions.html.twig', {'node': project.namespace}) }}
+    </section>
+{% endblock %}

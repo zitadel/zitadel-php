@@ -22,8 +22,8 @@
             </ignore>
         </api>
         <guide format="md">
-            <source dsn=".">
-                <path>docs</path>
+            <source dsn="docs">
+                <path>.</path>
             </source>
         </guide>
     </version>
