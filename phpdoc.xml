@@ -18,13 +18,13 @@
             </source>
             <ignore hidden="true">
                 <path>vendor</path>
-                <path>lib/Bridge</path>
             </ignore>
         </api>
-        <guide format="md">
+        <guide format="rst">
             <source dsn="docs">
                 <path>.</path>
             </source>
+            <output>guides</output>
         </guide>
     </version>
 </phpdocumentor>

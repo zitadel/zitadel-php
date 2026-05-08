@@ -3,17 +3,6 @@
     Menu
 </label>
 <aside class="phpdocumentor-column -three phpdocumentor-sidebar">
-    <section class="phpdocumentor-sidebar__category -guides">
-        <h2 class="phpdocumentor-sidebar__category-header">Framework Guides</h2>
-        <h3 class="phpdocumentor-sidebar__root-namespace"><a href="docs/laravel.html">Laravel</a></h3>
-        <h3 class="phpdocumentor-sidebar__root-namespace"><a href="docs/symfony.html">Symfony</a></h3>
-        <h3 class="phpdocumentor-sidebar__root-namespace"><a href="docs/yii.html">Yii 3</a></h3>
-        <h3 class="phpdocumentor-sidebar__root-namespace"><a href="docs/codeigniter.html">CodeIgniter 4</a></h3>
-        <h3 class="phpdocumentor-sidebar__root-namespace"><a href="docs/phalcon.html">Phalcon</a></h3>
-        <h3 class="phpdocumentor-sidebar__root-namespace"><a href="docs/slim.html">Slim 4</a></h3>
-        <h3 class="phpdocumentor-sidebar__root-namespace"><a href="docs/mezzio.html">Mezzio</a></h3>
-    </section>
-
     {% for version in project.versions %}
         {% for toc in version.tableOfContents %}
         <section class="phpdocumentor-sidebar__category -{{ toc.name|lower }}">

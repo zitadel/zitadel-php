@@ -1,49 +1,139 @@
 {% extends 'base.html.twig' %}
 
 {% block content %}
-    <section>
-        <h2>Quick Start</h2>
-        <ol>
-            <li>Install: <code>composer require zitadel/zitadel-php</code></li>
-            <li>Set environment variables: <code>ZITADEL_ISSUER_URL</code>, <code>ZITADEL_CLIENT_ID</code>, <code>ZITADEL_REDIRECT_URI</code>, <code>ZITADEL_COOKIE_SECRET</code></li>
-            <li>Follow the guide for your framework below.</li>
-        </ol>
-    </section>
+<article class="phpdocumentor-element">
 
-    <section>
-        <h2>Framework Guides</h2>
-        <table class="phpdocumentor-table">
-            <thead>
-                <tr><th>Framework</th><th>Integration</th></tr>
-            </thead>
-            <tbody>
-                <tr><td><a href="docs/laravel.html">Laravel</a></td><td>Auto-discovered ServiceProvider, Auth guard, <code>auth()-&gt;user()</code></td></tr>
-                <tr><td><a href="docs/symfony.html">Symfony</a></td><td>Bundle + EventListener, <code>?Claims $claims</code> controller injection</td></tr>
-                <tr><td><a href="docs/yii.html">Yii 3</a></td><td>PSR-15 pipeline, <code>$request-&gt;getAttribute('zitadel.claims')</code></td></tr>
-                <tr><td><a href="docs/slim.html">Slim 4</a></td><td>PSR-15 native, no bridge, <code>$app-&gt;add(...)</code></td></tr>
-                <tr><td><a href="docs/mezzio.html">Mezzio</a></td><td>PSR-15 native, no bridge, <code>$app-&gt;pipe(...)</code></td></tr>
-                <tr><td><a href="docs/codeigniter.html">CodeIgniter 4</a></td><td>FilterInterface, <code>ZitadelHolder::claims()</code></td></tr>
-                <tr><td><a href="docs/phalcon.html">Phalcon</a></td><td>Micro MiddlewareInterface / MVC beforeHandleRequest</td></tr>
-            </tbody>
-        </table>
-    </section>
+    <h1>Zitadel PHP SDK</h1>
 
-    <section>
-        <h2>API Reference</h2>
+    <p class="phpdocumentor-element__summary">
+        Zero-dependency PKCE authentication middleware for PHP 8.3+.
+        Handles the full OAuth 2.0 Authorization Code + PKCE flow, validates JWTs via JWKS,
+        and stores all session state in encrypted HttpOnly cookies —
+        no server-side sessions, no database, no custom routes.
+    </p>
 
-        {% set node = project.namespace %}
+    <pre class="phpdocumentor-code"><code class="language-bash">composer require zitadel/zitadel-php</code></pre>
 
-        {{
-        include(
-            'components/table-of-contents.html.twig',
-            {
-                'node': project.namespace,
-                'namespaces': usesNamespaces or not usesPackages ? node.children : [],
-                'packages': usesPackages ? project.package.children : []
-            }
-        )
-        }}
-        {{ include('components/constants.html.twig', {'node': project.namespace}) }}
-        {{ include('components/functions.html.twig', {'node': project.namespace}) }}
-    </section>
+    <hr>
+
+    <h2>Quick Start</h2>
+
+    <ol>
+        <li>
+            <strong>Install</strong><br>
+            <code>composer require zitadel/zitadel-php</code>
+        </li>
+        <li>
+            <strong>Generate a cookie secret</strong><br>
+            <code>php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"</code>
+        </li>
+        <li>
+            <strong>Set environment variables</strong>
+            <dl>
+                <dt><code>ZITADEL_ISSUER_URL</code></dt>
+                <dd>Your Zitadel instance URL, e.g. <code>https://my.zitadel.cloud</code></dd>
+                <dt><code>ZITADEL_CLIENT_ID</code></dt>
+                <dd>OAuth 2.0 client ID from the Zitadel console</dd>
+                <dt><code>ZITADEL_REDIRECT_URI</code></dt>
+                <dd>Full callback URL, e.g. <code>https://myapp.com/zitadel/callback</code></dd>
+                <dt><code>ZITADEL_COOKIE_SECRET</code></dt>
+                <dd>The 64-character hex string from step 2</dd>
+            </dl>
+        </li>
+        <li>
+            <strong>Follow your framework guide below.</strong>
+        </li>
+    </ol>
+
+    <hr>
+
+    <h2>Framework Guides</h2>
+
+    <dl class="phpdocumentor-table-of-contents">
+        <dt class="phpdocumentor-table-of-contents__entry -class">
+            <a href="guides/laravel.html">Laravel</a>
+        </dt>
+        <dd>Auto-discovered ServiceProvider and Auth guard. Access claims via <code>auth('zitadel')->user()->claims</code>.</dd>
+
+        <dt class="phpdocumentor-table-of-contents__entry -class">
+            <a href="guides/symfony.html">Symfony</a>
+        </dt>
+        <dd>Bundle + <code>KernelEvents</code> listener. Inject <code>?Claims $claims</code> directly into controller actions.</dd>
+
+        <dt class="phpdocumentor-table-of-contents__entry -class">
+            <a href="guides/yii.html">Yii 3</a>
+        </dt>
+        <dd>PSR-15 native — add <code>ZitadelMiddleware</code> to the pipeline. Claims via <code>$request->getAttribute('zitadel.claims')</code>.</dd>
+
+        <dt class="phpdocumentor-table-of-contents__entry -class">
+            <a href="guides/slim.html">Slim 4</a>
+        </dt>
+        <dd>PSR-15 native, zero bridge. One line: <code>$app->add(new ZitadelMiddleware(...))</code>.</dd>
+
+        <dt class="phpdocumentor-table-of-contents__entry -class">
+            <a href="guides/mezzio.html">Mezzio</a>
+        </dt>
+        <dd>PSR-15 native, zero bridge. One line: <code>$app->pipe(ZitadelMiddleware::class)</code>.</dd>
+
+        <dt class="phpdocumentor-table-of-contents__entry -class">
+            <a href="guides/codeigniter.html">CodeIgniter 4</a>
+        </dt>
+        <dd>Register <code>ZitadelFilter</code> as a global <code>before</code> filter. Claims via <code>ZitadelHolder::claims()</code>.</dd>
+
+        <dt class="phpdocumentor-table-of-contents__entry -class">
+            <a href="guides/phalcon.html">Phalcon</a>
+        </dt>
+        <dd>Micro: <code>$app->before(new ZitadelMicroPlugin(...))</code>. MVC: attach <code>ZitadelPlugin</code> to the events manager.</dd>
+    </dl>
+
+    <hr>
+
+    <h2>Architecture</h2>
+
+    <p>The library has three layers:</p>
+
+    <dl>
+        <dt><strong>Core</strong> — <code>lib/Auth/</code>, <code>lib/Middleware/</code></dt>
+        <dd>Pure PSR-15, zero framework dependencies. <code>ZitadelMiddleware</code> owns the complete
+        lifecycle: PKCE redirect, callback, logout, JWT validation, and route protection.</dd>
+
+        <dt><strong>Bridges</strong> — <code>lib/Bridge/</code></dt>
+        <dd>Thin, idiomatic adapters per framework. Laravel gets a ServiceProvider and Auth guard;
+        Symfony gets a Bundle and value resolver; CI4 gets a <code>FilterInterface</code>;
+        Phalcon gets event plugins. Slim and Mezzio need no bridge — the PSR-15 core works directly.</dd>
+
+        <dt><strong>Config</strong> — <code>lib/Config/ZitadelConfig</code></dt>
+        <dd>Single immutable <code>readonly class</code> passed to the middleware. All options are
+        constructor parameters; see the <a href="guides/index.html">configuration reference</a>.</dd>
+    </dl>
+
+    <hr>
+
+    <h2>API Reference</h2>
+
+    {% set node = project.namespace %}
+
+    {% if usesNamespaces or not usesPackages %}
+        {% set namespaces = node.children %}
+        {% for namespace in namespaces %}
+            <h3>{{ namespace|route('class:short') }}</h3>
+            {% if namespace.namespaces is not empty %}
+                <dl class="phpdocumentor-table-of-contents">
+                {% for child in namespace.namespaces %}
+                    <dt class="phpdocumentor-table-of-contents__entry -namespace">{{ child|route('class:short') }}</dt>
+                {% endfor %}
+                </dl>
+            {% endif %}
+            {% if namespace.classes is not empty %}
+                <dl class="phpdocumentor-table-of-contents">
+                {% for class in namespace.classes %}
+                    <dt class="phpdocumentor-table-of-contents__entry -class">{{ class|route('class:short') }}</dt>
+                    {%- if class.summary %}<dd>{{ class.summary }}</dd>{% endif %}
+                {% endfor %}
+                </dl>
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+
+</article>
 {% endblock %}
