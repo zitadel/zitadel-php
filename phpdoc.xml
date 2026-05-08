@@ -21,5 +21,10 @@
                 <path>lib/Bridge</path>
             </ignore>
         </api>
+        <guide format="md">
+            <source dsn=".">
+                <path>docs</path>
+            </source>
+        </guide>
     </version>
 </phpdocumentor>
