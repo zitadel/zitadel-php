@@ -1,0 +1,82 @@
+{
+    "name": "zitadel/sdk",
+    "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii 3, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
+    "keywords": ["auth", "oidc", "pkce", "middleware", "zitadel", "zitadel-sdk"],
+    "homepage": "https://github.com/zitadel/zitadel-php",
+    "license": "Apache-2.0",
+    "authors": [
+        {
+            "name": "Zitadel",
+            "homepage": "https://zitadel.com"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "ext-openssl": "*",
+        "ext-sodium": "*",
+        "psr/http-message": "^2.0",
+        "psr/http-factory": "^1.0",
+        "psr/http-server-middleware": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.0",
+        "friendsofphp/php-cs-fixer": "^3.75",
+        "testcontainers/testcontainers": "^1.0",
+        "vlucas/phpdotenv": "^5.6",
+        "rector/rector": "^2.0",
+        "phpstan/phpstan": "^2.1",
+        "icanhazstring/composer-unused": "^0.9.3",
+        "phpdocumentor/phpdocumentor": "^3.8",
+        "nyholm/psr7": "^1.0",
+        "mridang/phpunit-reporters": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Zitadel\\Sdk\\": "lib/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Zitadel\\Sdk\\Test\\": "test/",
+            "Zitadel\\Sdk\\Spec\\": "spec/"
+        }
+    },
+    "support": {
+        "email": "support@zitadel.com",
+        "issues": "https://github.com/zitadel/zitadel-php/issues",
+        "source": "https://github.com/zitadel/zitadel-php",
+        "security": "https://github.com/zitadel/zitadel-php/security",
+        "chat": "https://discord.com/servers/zitadel-927474939156643850"
+    },
+    "scripts": {
+        "test": "phpunit --coverage-html=build/coverage/html --coverage-clover=build/coverage/clover.xml --log-junit=build/reports/junit.xml",
+        "rector": "rector process",
+        "phpstan": "phpstan analyse --memory-limit=-1",
+        "format": "php-cs-fixer fix",
+        "docgen": "phpdoc --config=phpdoc.xml",
+        "depcheck": "composer-unused"
+    },
+    "config": {
+        "platform": {
+            "php": "8.3.0"
+        },
+        "allow-plugins": {
+            "php-http/discovery": true
+        },
+        "process-timeout": 600
+    },
+    "suggest": {
+        "laravel/framework": "^10.0|^11.0 — enables ZitadelServiceProvider auto-discovery",
+        "symfony/http-kernel": "^6.4|^7.0 — enables ZitadelBundle",
+        "yiisoft/yii-web": "^3.0 — enables Yii 3 PSR-15 bootstrap",
+        "codeigniter4/framework": "^4.0 — enables ZitadelFilter",
+        "phalcon/phalcon": "^5.0 — enables Phalcon MVC/Micro plugins"
+    },
+    "extra": {
+        "laravel": {
+            "providers": ["Zitadel\\Sdk\\Bridge\\Laravel\\ZitadelServiceProvider"]
+        }
+    }
+}

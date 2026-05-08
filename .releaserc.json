@@ -1,0 +1,55 @@
+{
+  "branches": [
+    "main",
+    {
+      "name": "beta",
+      "prerelease": "beta"
+    }
+  ],
+  "plugins": [
+    ["@semantic-release/commit-analyzer", {
+      "releaseRules": [
+        { "type": "chore", "scope": "deps", "subject": "*security-updates*", "release": "patch" }
+      ]
+    }],
+    [
+      "@mridang/semantic-release-peer-version",
+      {
+        "repo": "zitadel/zitadel"
+      }
+    ],
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "sed -i 's/[0-9]\\+\\.[0-9]\\+\\.[0-9]\\+[-a-zA-Z0-9\\.]*/${nextRelease.version}/' lib/Version.php"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "composer install --no-progress --no-interaction --prefer-dist --optimize-autoloader"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "successComment": false,
+        "failComment": false,
+        "assets": []
+      }
+    ],
+    "@mridang/semantic-release-packagist",
+    [
+      "@semantic-release/git",
+      {
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
+        "assets": [
+          "composer.json",
+          "composer.lock",
+          "lib/Version.php"
+        ]
+      }
+    ]
+  ]
+}

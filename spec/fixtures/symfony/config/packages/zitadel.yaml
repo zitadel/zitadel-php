@@ -1,0 +1,8 @@
+zitadel:
+    issuer_url: '%env(ZITADEL_ISSUER_URL)%'
+    client_id: '%env(ZITADEL_CLIENT_ID)%'
+    redirect_uri: '%env(ZITADEL_REDIRECT_URI)%'
+    cookie_secret: '%env(ZITADEL_COOKIE_SECRET)%'
+    protect_all: true
+    ignored_routes:
+        - '/health'

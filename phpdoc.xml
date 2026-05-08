@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<phpdocumentor
+    configVersion="3"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://www.phpdoc.org"
+    xsi:noNamespaceSchemaLocation="https://docs.phpdoc.org/latest/phpdoc.xsd"
+>
+    <title>Zitadel PHP SDK</title>
+    <paths>
+        <docs>./build/docs</docs>
+        <cache>./build/.phpdoc/cache</cache>
+    </paths>
+    <version number="1.0.0">
+        <folder>latest</folder>
+        <api format="php">
+            <source dsn=".">
+                <path>lib</path>
+            </source>
+            <ignore hidden="true">
+                <path>vendor</path>
+            </ignore>
+        </api>
+        <guide format="markdown">
+            <source dsn=".">
+                <path>docs</path>
+            </source>
+        </guide>
+    </version>
+</phpdocumentor>

@@ -1,0 +1,152 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Zitadel\Sdk\Auth;
+
+/**
+ * Converts a JSON Web Key (JWK) to an OpenSSL public key resource.
+ *
+ * Handles RSA and EC keys using only `ext-openssl` — no external dependencies.
+ * RSA keys are reconstructed from the `n` and `e` parameters via ASN.1 DER.
+ * EC keys are reconstructed from `x`, `y`, and `crv` via DER with named-curve OIDs.
+ *
+ * Supported curves: P-256 (`1.2.840.10045.3.1.7`), P-384 (`1.3.132.0.34`),
+ * P-521 (`1.3.132.0.35`).
+ */
+final class JwkConverter
+{
+    private function __construct() {}
+
+    private const array CURVE_OIDS = [
+        'P-256' => "\x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07",
+        'P-384' => "\x06\x05\x2b\x81\x04\x00\x22",
+        'P-521' => "\x06\x05\x2b\x81\x04\x00\x23",
+    ];
+
+    /**
+     * Converts a single JWK array to an OpenSSL public key.
+     *
+     * @param array<string, string> $jwk Decoded JWK object.
+     * @return \OpenSSLAsymmetricKey
+     * @throws \InvalidArgumentException When the JWK is invalid or unsupported.
+     */
+    public static function toKey(array $jwk): \OpenSSLAsymmetricKey
+    {
+        $kty = $jwk['kty'] ?? '';
+
+        if ($kty === 'RSA') {
+            return self::rsaToKey($jwk);
+        }
+
+        if ($kty === 'EC') {
+            return self::ecToKey($jwk);
+        }
+
+        throw new \InvalidArgumentException("[zitadel] Unsupported JWK key type: {$kty}");
+    }
+
+    /** @param array<string, string> $jwk */
+    private static function rsaToKey(array $jwk): \OpenSSLAsymmetricKey
+    {
+        if (!isset($jwk['n'], $jwk['e'])) {
+            throw new \InvalidArgumentException('[zitadel] RSA JWK missing required fields n and/or e.');
+        }
+
+        $n = self::base64urlDecode($jwk['n']);
+        $e = self::base64urlDecode($jwk['e']);
+
+        $nDer = self::encodeInteger($n);
+        $eDer = self::encodeInteger($e);
+
+        $seq        = self::encodeSequence($nDer . $eDer);
+        $algId      = self::encodeSequence("\x06\x09\x2a\x86\x48\x86\xf7\x0d\x01\x01\x01\x05\x00");
+        $bitString  = "\x03" . self::encodeLength(strlen($seq) + 1) . "\x00" . $seq;
+        $spki       = self::encodeSequence($algId . $bitString);
+
+        $pem = "-----BEGIN PUBLIC KEY-----\n" .
+            chunk_split(base64_encode($spki), 64, "\n") .
+            "-----END PUBLIC KEY-----\n";
+
+        $key = openssl_pkey_get_public($pem);
+        if ($key === false) {
+            throw new \InvalidArgumentException('[zitadel] Failed to parse RSA public key from JWK.');
+        }
+
+        return $key;
+    }
+
+    /** @param array<string, string> $jwk */
+    private static function ecToKey(array $jwk): \OpenSSLAsymmetricKey
+    {
+        if (!isset($jwk['x'], $jwk['y'], $jwk['crv'])) {
+            throw new \InvalidArgumentException('[zitadel] EC JWK missing required fields x, y, and/or crv.');
+        }
+
+        $curveOid = self::CURVE_OIDS[$jwk['crv']] ?? null;
+        if ($curveOid === null) {
+            throw new \InvalidArgumentException("[zitadel] Unsupported EC curve: {$jwk['crv']}");
+        }
+
+        $x = self::base64urlDecode($jwk['x']);
+        $y = self::base64urlDecode($jwk['y']);
+
+        $point     = "\x04" . $x . $y;
+        $algOid    = "\x06\x07\x2a\x86\x48\xce\x3d\x02\x01";
+        $algId     = self::encodeSequence($algOid . $curveOid);
+        $bitString = "\x03" . self::encodeLength(strlen($point) + 1) . "\x00" . $point;
+        $spki      = self::encodeSequence($algId . $bitString);
+
+        $pem = "-----BEGIN PUBLIC KEY-----\n" .
+            chunk_split(base64_encode($spki), 64, "\n") .
+            "-----END PUBLIC KEY-----\n";
+
+        $key = openssl_pkey_get_public($pem);
+        if ($key === false) {
+            throw new \InvalidArgumentException('[zitadel] Failed to parse EC public key from JWK.');
+        }
+
+        return $key;
+    }
+
+    private static function base64urlDecode(string $input): string
+    {
+        $padded = strtr($input, '-_', '+/') . str_repeat('=', (4 - strlen($input) % 4) % 4);
+        $result = base64_decode($padded);
+        if ($result === false) {
+            throw new \InvalidArgumentException('[zitadel] Invalid base64url encoding in JWK.');
+        }
+
+        return $result;
+    }
+
+    private static function encodeInteger(string $bytes): string
+    {
+        if (ord($bytes[0]) >= 0x80) {
+            $bytes = "\x00" . $bytes;
+        }
+
+        return "\x02" . self::encodeLength(strlen($bytes)) . $bytes;
+    }
+
+    private static function encodeSequence(string $content): string
+    {
+        return "\x30" . self::encodeLength(strlen($content)) . $content;
+    }
+
+    private static function encodeLength(int $len): string
+    {
+        if ($len < 0x80) {
+            return chr($len);
+        }
+
+        $bytes = '';
+        $tmp   = $len;
+        while ($tmp > 0) {
+            $bytes = chr($tmp & 0xff) . $bytes;
+            $tmp >>= 8;
+        }
+
+        return chr(0x80 | strlen($bytes)) . $bytes;
+    }
+}

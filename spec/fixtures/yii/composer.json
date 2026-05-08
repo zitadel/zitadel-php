@@ -1,0 +1,26 @@
+{
+    "name": "zitadel/zitadel-php-fixture-yii",
+    "description": "Yii 3 fixture app for Zitadel PHP SDK integration specs",
+    "type": "project",
+    "license": "Apache-2.0",
+    "require": {
+        "php": "^8.3",
+        "yiisoft/yii-web": "^3.0",
+        "nyholm/psr7": "^1.0",
+        "zitadel/zitadel-php": "*@dev"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../..",
+            "options": {"symlink": true}
+        }
+    ],
+    "autoload": {
+        "psr-4": {"App\\": "src/"}
+    },
+    "config": {
+        "platform": {"php": "8.3.0"},
+        "allow-plugins": {"php-http/discovery": true}
+    }
+}
