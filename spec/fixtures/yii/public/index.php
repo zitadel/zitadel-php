@@ -9,6 +9,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Yiisoft\Di\Container;
 use Yiisoft\Di\ContainerConfig;
+use Zitadel\Sdk\Auth\Claims;
 use Zitadel\Sdk\Middleware\ZitadelMiddleware;
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -34,16 +35,38 @@ $appHandler = new class ($path, $psr17) implements RequestHandlerInterface {
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         if ($this->path === '/dashboard') {
+            /** @var Claims|null $claims */
             $claims = $request->getAttribute('zitadel.claims');
+
             return $this->psr17->createResponse(200)
                 ->withHeader('Content-Type', 'text/plain')
-                ->withBody($this->psr17->createStream("Hello {$claims?->name}"));
+                ->withBody($this->psr17->createStream(
+                    "Hello {$claims?->name}\nemail:{$claims?->email}\nsub:{$claims?->sub}"
+                ));
         }
 
         if ($this->path === '/health') {
             return $this->psr17->createResponse(200)
                 ->withHeader('Content-Type', 'text/plain')
                 ->withBody($this->psr17->createStream('OK'));
+        }
+
+        if ($this->path === '/home') {
+            return $this->psr17->createResponse(200)
+                ->withHeader('Content-Type', 'text/plain')
+                ->withBody($this->psr17->createStream('Welcome home'));
+        }
+
+        if ($this->path === '/api') {
+            /** @var Claims|null $claims */
+            $claims  = $request->getAttribute('zitadel.claims');
+            $payload = $claims !== null
+                ? ['authenticated' => true, 'sub' => $claims->sub, 'name' => $claims->name, 'email' => $claims->email]
+                : ['authenticated' => false];
+
+            return $this->psr17->createResponse(200)
+                ->withHeader('Content-Type', 'application/json')
+                ->withBody($this->psr17->createStream((string) json_encode($payload)));
         }
 
         return $this->psr17->createResponse(404)

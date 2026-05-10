@@ -23,7 +23,7 @@ class Services extends BaseServices
             redirectUri:       (string) ($_ENV['ZITADEL_REDIRECT_URI']       ?? ''),
             cookieSecret:      (string) ($_ENV['ZITADEL_COOKIE_SECRET']      ?? ''),
             protectAll:        true,
-            ignoredRoutes:     ['/health'],
+            ignoredRoutes:     ['/health', '/home'],
             jwksPath:          (string) ($_ENV['ZITADEL_JWKS_PATH']          ?? '/oauth/v2/keys'),
             authorizationPath: (string) ($_ENV['ZITADEL_AUTHORIZATION_PATH'] ?? '/oauth/v2/authorize'),
             tokenPath:         (string) ($_ENV['ZITADEL_TOKEN_PATH']         ?? '/oauth/v2/token'),
