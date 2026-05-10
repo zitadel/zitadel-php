@@ -97,10 +97,15 @@ final class JwksCache implements JwksCacheInterface
             CURLOPT_SSL_VERIFYHOST      => 2,
         ]);
 
-        $body  = curl_exec($ch);
-        $errno = curl_errno($ch);
+        $body     = curl_exec($ch);
+        $errno    = curl_errno($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
         if ($errno !== 0 || $body === false || !is_string($body)) {
+            return null;
+        }
+
+        if ($httpCode !== 200) {
             return null;
         }
 
