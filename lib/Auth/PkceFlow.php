@@ -123,9 +123,10 @@ final class PkceFlow
             CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
         ]);
 
-        $body  = curl_exec($ch);
-        $errno = curl_errno($ch);
-        $error = curl_error($ch);
+        $body     = curl_exec($ch);
+        $errno    = curl_errno($ch);
+        $error    = curl_error($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
         if ($errno !== 0 || $body === false) {
             throw new PkceException("[zitadel] Token exchange request failed: {$error} (errno {$errno})");
@@ -133,7 +134,7 @@ final class PkceFlow
 
         /** @var string $body */
         if (!json_validate($body)) {
-            throw new PkceException('[zitadel] Token exchange returned non-JSON response.');
+            throw new PkceException("[zitadel] Token exchange returned non-JSON response (HTTP {$httpCode}).");
         }
 
         /** @var array<string, mixed> $data */
@@ -142,6 +143,10 @@ final class PkceFlow
         if (isset($data['error'])) {
             $desc = $data['error_description'] ?? $data['error'];
             throw new PkceException("[zitadel] Token exchange OAuth error: {$desc}");
+        }
+
+        if ($httpCode < 200 || $httpCode >= 300) {
+            throw new PkceException("[zitadel] Token exchange failed with HTTP {$httpCode}.");
         }
 
         return $data;
