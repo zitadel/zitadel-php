@@ -41,6 +41,22 @@ final class JwksCacheTest extends TestCase
         self::assertSame($fakeKey, $result);
     }
 
+    public function testClearCacheEvictsAllEntries(): void
+    {
+        $fakeKey = openssl_pkey_new(['private_key_bits' => 512, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($fakeKey);
+
+        $ref = new \ReflectionProperty(JwksCache::class, 'store');
+        $ref->setValue(null, [
+            'https://example.com/keys:kid-a' => ['key' => $fakeKey, 'fetchedAt' => time()],
+            'https://example.com/keys:kid-b' => ['key' => $fakeKey, 'fetchedAt' => time()],
+        ]);
+
+        (new JwksCache())->clearCache();
+
+        self::assertSame([], $ref->getValue(null));
+    }
+
     public function testExpiredCacheEntryReturnsNullWhenUnreachable(): void
     {
         // Prime the cache with an entry that's already expired (fetchedAt = 0).

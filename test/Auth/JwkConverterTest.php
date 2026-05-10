@@ -43,6 +43,36 @@ final class JwkConverterTest extends TestCase
         self::assertInstanceOf(\OpenSSLAsymmetricKey::class, $key);
     }
 
+    public function testConvertsEcP384Jwk(): void
+    {
+        $ecKey = openssl_pkey_new(['curve_name' => 'secp384r1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        self::assertNotFalse($ecKey);
+
+        $details = openssl_pkey_get_details($ecKey);
+        self::assertNotFalse($details);
+
+        $x = rtrim(strtr(base64_encode(str_pad($details['ec']['x'], 48, "\x00", STR_PAD_LEFT)), '+/', '-_'), '=');
+        $y = rtrim(strtr(base64_encode(str_pad($details['ec']['y'], 48, "\x00", STR_PAD_LEFT)), '+/', '-_'), '=');
+
+        self::assertInstanceOf(\OpenSSLAsymmetricKey::class, JwkConverter::toKey(['kty' => 'EC', 'crv' => 'P-384', 'x' => $x, 'y' => $y]));
+    }
+
+    public function testConvertsEcP521Jwk(): void
+    {
+        $ecKey = openssl_pkey_new(['curve_name' => 'secp521r1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        self::assertNotFalse($ecKey);
+
+        $details = openssl_pkey_get_details($ecKey);
+        self::assertNotFalse($details);
+
+        // P-521 coordinates are 66 bytes (ceil(521/8)) but PHP's BN2bin strips
+        // leading zero bytes — the MSByte is 0x00 roughly 50% of the time.
+        $x = rtrim(strtr(base64_encode(str_pad($details['ec']['x'], 66, "\x00", STR_PAD_LEFT)), '+/', '-_'), '=');
+        $y = rtrim(strtr(base64_encode(str_pad($details['ec']['y'], 66, "\x00", STR_PAD_LEFT)), '+/', '-_'), '=');
+
+        self::assertInstanceOf(\OpenSSLAsymmetricKey::class, JwkConverter::toKey(['kty' => 'EC', 'crv' => 'P-521', 'x' => $x, 'y' => $y]));
+    }
+
     public function testThrowsForMissingKty(): void
     {
         $this->expectException(\InvalidArgumentException::class);
