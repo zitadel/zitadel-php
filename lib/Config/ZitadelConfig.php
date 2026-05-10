@@ -167,6 +167,18 @@ readonly class ZitadelConfig
                 );
             }
         }
+
+        if ($clockSkewSeconds < 0 || $jwksTtlSeconds < 0 || $httpTimeoutSeconds < 0) {
+            throw new \InvalidArgumentException(
+                '[zitadel] clockSkewSeconds, jwksTtlSeconds, and httpTimeoutSeconds must be non-negative integers.'
+            );
+        }
+
+        if ($allowedAlgorithms === [] || $allowedTokenTypes === []) {
+            throw new \InvalidArgumentException(
+                '[zitadel] allowedAlgorithms and allowedTokenTypes must not be empty arrays.'
+            );
+        }
     }
 
     /** Returns the JWKS endpoint URI. */
