@@ -29,4 +29,13 @@ interface JwksCacheInterface
         int $ttlSeconds,
         int $timeoutSeconds,
     ): ?\OpenSSLAsymmetricKey;
+
+    /**
+     * Evicts all entries from the in-process key store.
+     *
+     * Intended for long-running runtimes (Swoole, RoadRunner, FrankenPHP) where
+     * the static cache persists across requests. Call this from a key-rotation
+     * webhook handler to force an immediate JWKS re-fetch on the next validation.
+     */
+    public function clearCache(): void;
 }

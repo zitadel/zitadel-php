@@ -115,6 +115,17 @@ final class JwksCache implements JwksCacheInterface
     }
 
     /**
+     * Evicts all entries from the in-process key store.
+     *
+     * @inheritDoc
+     */
+    #[\Override]
+    public function clearCache(): void
+    {
+        self::$store = [];
+    }
+
+    /**
      * @param array<string, mixed> $jwks
      */
     private function selectKey(array $jwks, ?string $kid, string $alg): ?\OpenSSLAsymmetricKey
