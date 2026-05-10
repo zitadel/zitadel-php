@@ -29,7 +29,7 @@
         "rector/rector": "^2.0",
         "phpstan/phpstan": "^2.1",
         "icanhazstring/composer-unused": "^0.9.3",
-"nyholm/psr7": "^1.0",
+        "nyholm/psr7": "^1.0",
         "mridang/phpunit-reporters": "^1.0",
         "symfony/http-client": "^7.4"
     },
@@ -58,7 +58,7 @@
         "rector": "rector process",
         "phpstan": "phpstan analyse --memory-limit=-1",
         "format": "php-cs-fixer fix",
-"depcheck": "composer-unused"
+        "depcheck": "composer-unused"
     },
     "config": {
         "platform": {
