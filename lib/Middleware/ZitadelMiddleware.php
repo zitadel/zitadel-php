@@ -144,7 +144,7 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         $code   = $params['code'] ?? null;
         $state  = $params['state'] ?? null;
 
-        if ($state !== $pkce['state']) {
+        if (!hash_equals($pkce['state'], (string) $state)) {
             return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
         }
 
