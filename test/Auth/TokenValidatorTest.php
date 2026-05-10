@@ -242,6 +242,11 @@ final class TokenValidatorTest extends TestCase
             ): ?\OpenSSLAsymmetricKey {
                 return $this->key;
             }
+
+            #[\Override]
+            public function clearCache(): void
+            {
+            }
         };
     }
 }

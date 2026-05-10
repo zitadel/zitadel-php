@@ -266,6 +266,25 @@ readonly class TokenValidator
         $sDer  = "\x02" . chr(strlen($s)) . $s;
         $inner = $rDer . $sDer;
 
-        return "\x30" . chr(strlen($inner)) . $inner;
+        return "\x30" . self::asn1Length(strlen($inner)) . $inner;
+    }
+
+    /**
+     * Encodes a DER length value in the minimum number of bytes.
+     *
+     * DER short form (one byte) covers 0–127. For lengths 128–255 — which can
+     * occur with ES512 (P-521) signatures whose two INTEGER elements total up to
+     * 138 bytes — the long form `0x81 <length-byte>` is required.
+     *
+     * @param int $len The length value to encode (0–255).
+     * @return string One or two bytes of DER length encoding.
+     */
+    private static function asn1Length(int $len): string
+    {
+        if ($len < 0x80) {
+            return chr($len);       // short form: single byte
+        }
+
+        return "\x81" . chr($len);  // long form: one extra byte (sufficient for all EC curves)
     }
 }
