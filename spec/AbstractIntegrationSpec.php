@@ -36,6 +36,9 @@ abstract class AbstractIntegrationSpec extends TestCase
     /** @var array<class-string, GenericContainer> */
     private static array $mockServers = [];
 
+    /** @var array<class-string, string> */
+    private static array $mockBaseUrls = [];
+
     /** @var array<class-string, resource> */
     private static array $phpProcesses = [];
 
@@ -67,6 +70,11 @@ abstract class AbstractIntegrationSpec extends TestCase
         return static::fixturePort();
     }
 
+    protected function mockBaseUrl(): string
+    {
+        return self::$mockBaseUrls[static::class];
+    }
+
     // ── Lifecycle ──────────────────────────────────────────────────────────────
 
     public static function setUpBeforeClass(): void
@@ -86,7 +94,8 @@ abstract class AbstractIntegrationSpec extends TestCase
 
         self::waitForHttp("{$mockBase}/", 405);
 
-        self::$mockServers[$class] = $container;
+        self::$mockServers[$class]   = $container;
+        self::$mockBaseUrls[$class]  = $mockBase;
 
         // Write .env for the fixture app
         static::writeEnvFile(static::fixtureDir(), static::fixturePort(), $mockBase);
@@ -218,8 +227,9 @@ abstract class AbstractIntegrationSpec extends TestCase
         // Step 3: Callback exchanges code and sets cookie; browser follows redirect to /dashboard
         $page->waitForURL($this->baseUrl() . '/dashboard');
 
-        // Step 4: Authenticated page must contain the greeting
+        // Step 4: Authenticated page must contain the greeting and email claim
         self::assertStringContainsString('Hello', $page->locator('body')->innerText());
+        self::assertStringContainsString('alice@example.com', $page->locator('body')->innerText());
     }
 
     public function testLogoutClearsCookieAndRedirects(): void
@@ -242,6 +252,57 @@ abstract class AbstractIntegrationSpec extends TestCase
         // /dashboard must redirect to auth again
         $page->goto($this->baseUrl() . '/dashboard');
         self::assertStringContainsString('/authorize', $page->url());
+    }
+
+    public function testHomeIsAccessibleWithoutAuth(): void
+    {
+        $page     = $this->newPage();
+        $response = $page->goto($this->baseUrl() . '/home');
+        self::assertNotNull($response);
+        self::assertSame(200, $response->status());
+        self::assertStringContainsString('Welcome home', $page->locator('body')->innerText());
+    }
+
+    public function testApiBearerTokenAccess(): void
+    {
+        // Issue a signed JWT directly from the navikt mock-oauth2-server
+        $ch = curl_init($this->mockBaseUrl() . '/default/token');
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => http_build_query([
+                'grant_type'    => 'client_credentials',
+                'client_id'     => 'test-client',
+                'client_secret' => 'test-secret',
+            ]),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
+        ]);
+        $body = curl_exec($ch);
+        self::assertNotFalse($body, 'Mock server token endpoint must be reachable');
+
+        $tokenResponse = json_decode((string) $body, true);
+        self::assertIsArray($tokenResponse);
+        self::assertArrayHasKey('access_token', $tokenResponse, 'Mock server must issue an access_token');
+        $jwt = (string) $tokenResponse['access_token'];
+
+        // Send that JWT to /api as a Bearer token
+        $ch2 = curl_init($this->baseUrl() . '/api');
+        curl_setopt_array($ch2, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_HTTPHEADER     => ["Authorization: Bearer {$jwt}"],
+        ]);
+        $apiBody = curl_exec($ch2);
+        self::assertNotFalse($apiBody, '/api endpoint must be reachable');
+
+        $apiResponse = json_decode((string) $apiBody, true);
+        self::assertIsArray($apiResponse);
+        self::assertTrue(
+            $apiResponse['authenticated'],
+            'JWKS-validated Bearer token must yield authenticated=true'
+        );
+        self::assertNotEmpty($apiResponse['sub'], 'Authenticated response must include a non-empty sub');
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

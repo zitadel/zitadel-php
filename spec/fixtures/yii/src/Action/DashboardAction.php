@@ -17,7 +17,7 @@ final class DashboardAction
         /** @var Claims|null $claims */
         $claims = $request->getAttribute('zitadel.claims');
 
-        $response->getBody()->write("Hello {$claims?->name}");
+        $response->getBody()->write("Hello {$claims?->name}\nemail:{$claims?->email}\nsub:{$claims?->sub}");
 
         return $response->withHeader('Content-Type', 'text/plain');
     }

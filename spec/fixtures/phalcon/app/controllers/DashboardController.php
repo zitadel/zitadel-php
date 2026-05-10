@@ -12,6 +12,6 @@ class DashboardController extends Controller
         /** @var Claims|null $claims */
         $claims = $this->di->get('zitadel.claims');
 
-        return "Hello {$claims?->name}";
+        return "Hello {$claims?->name}\nemail:{$claims?->email}\nsub:{$claims?->sub}";
     }
 }

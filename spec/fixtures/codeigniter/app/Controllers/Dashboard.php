@@ -13,6 +13,6 @@ final class Dashboard extends Controller
     {
         $claims = ZitadelHolder::claims();
 
-        return "Hello {$claims?->name}";
+        return "Hello {$claims?->name}\nemail:{$claims?->email}\nsub:{$claims?->sub}";
     }
 }
