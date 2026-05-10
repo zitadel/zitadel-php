@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ControllerEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
+use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Zitadel\Sdk\Attribute\AllowAnonymous;
 use Zitadel\Sdk\Auth\PkceFlow;
@@ -21,25 +22,29 @@ use Zitadel\Sdk\Exception\PkceException;
 /**
  * Symfony event subscriber that owns the complete Zitadel authentication lifecycle.
  *
- * Subscribes to two kernel events:
+ * Subscribes to three kernel events:
  *
- * **`KernelEvents::REQUEST` (priority 8)** — fires before the router (-32).
+ * **`KernelEvents::REQUEST` (priority 33)** — fires before RouterListener (32).
  * Handles:
  * - Callback path: validates PKCE state, exchanges code, validates token, sets cookie, redirects
  * - Logout path: clears cookie, redirects to Zitadel end-session endpoint
  * - Ignored routes: passes through without token check
  * - Token extraction (Bearer > cookie) and validation
  * - Protected route redirect to Zitadel authorization endpoint
- * - Public unauthenticated: sets `zitadel.claims` to null, clears stale `__nextgen*` cookies
+ * - Public unauthenticated: sets `zitadel.claims` to null, marks request for stale-cookie cleanup
  *
  * **`KernelEvents::CONTROLLER` (priority 0)** — fires after routing resolves the controller.
  * Checks `#[AllowAnonymous]` on the resolved controller method or class. If found and the
  * request was marked as protected-but-unauthenticated, clears the pending redirect flag
  * so the request is passed through as public.
+ *
+ * **`KernelEvents::RESPONSE` (priority 0)** — fires after the controller produces a response.
+ * Deletes stale `__nextgen*` cookies on public unauthenticated responses.
  */
 readonly class ZitadelListener implements EventSubscriberInterface
 {
-    private const string PENDING_REDIRECT_ATTR = '_zitadel_pending_redirect';
+    private const string PENDING_REDIRECT_ATTR    = '_zitadel_pending_redirect';
+    private const string CLEAR_STALE_COOKIES_ATTR = '_zitadel_clear_stale_cookies';
 
     public function __construct(
         private ZitadelConfig  $config,
@@ -47,15 +52,30 @@ readonly class ZitadelListener implements EventSubscriberInterface
     ) {
     }
 
+    /**
+     * Returns the kernel events this subscriber listens to.
+     *
+     * @return array<string, array{string, int}> Map of event name → [method, priority].
+     */
     #[\Override]
     public static function getSubscribedEvents(): array
     {
         return [
-            KernelEvents::REQUEST    => ['onKernelRequest', 8],
+            KernelEvents::REQUEST    => ['onKernelRequest', 33],
             KernelEvents::CONTROLLER => ['onKernelController', 0],
+            KernelEvents::RESPONSE   => ['onKernelResponse', 0],
         ];
     }
 
+    /**
+     * Handles the kernel request event (priority 33 — fires before RouterListener).
+     *
+     * Processes callback and logout paths, validates tokens, and either sets
+     * `zitadel.claims` on the request or marks it for an #[AllowAnonymous] check
+     * at the controller event.
+     *
+     * @param RequestEvent $event The kernel request event.
+     */
     public function onKernelRequest(RequestEvent $event): void
     {
         if (!$event->isMainRequest()) {
@@ -105,11 +125,20 @@ readonly class ZitadelListener implements EventSubscriberInterface
             return;
         }
 
-        // Public unauthenticated — clear stale cookies
+        // Public unauthenticated — mark for stale cookie cleanup at RESPONSE event
         $request->attributes->set('zitadel.claims', null);
-        $this->scheduleStaleNextgenCookieDeletion($event, $request);
+        $request->attributes->set(self::CLEAR_STALE_COOKIES_ATTR, true);
     }
 
+    /**
+     * Handles the kernel controller event (priority 0 — fires after routing).
+     *
+     * Checks for `#[AllowAnonymous]` on the resolved controller. If found, clears
+     * the pending-redirect flag so the request passes through as public. Otherwise,
+     * performs the PKCE redirect.
+     *
+     * @param ControllerEvent $event The kernel controller event.
+     */
     public function onKernelController(ControllerEvent $event): void
     {
         if (!$event->isMainRequest()) {
@@ -155,13 +184,55 @@ readonly class ZitadelListener implements EventSubscriberInterface
             'lax'
         ));
 
-        // Force the kernel to send this response
-        $event->getRequest()->attributes->set('_zitadel_response', $response);
-
-        // We can't set a response on ControllerEvent directly; wrap the controller
+        // ControllerEvent has no setResponse(); wrap the controller so the kernel returns this response.
         $event->setController(static fn () => $response);
     }
 
+    /**
+     * Handles the kernel response event (priority 0).
+     *
+     * Deletes stale `__nextgen*` cookies on public unauthenticated responses
+     * by setting them to expire in the past.
+     *
+     * @param ResponseEvent $event The kernel response event.
+     */
+    public function onKernelResponse(ResponseEvent $event): void
+    {
+        if (!$event->isMainRequest()) {
+            return;
+        }
+
+        if (!$event->getRequest()->attributes->get(self::CLEAR_STALE_COOKIES_ATTR, false)) {
+            return;
+        }
+
+        $response = $event->getResponse();
+        $secure   = $event->getRequest()->isSecure();
+
+        foreach ($event->getRequest()->cookies->keys() as $name) {
+            if (str_starts_with((string) $name, '__nextgen')) {
+                $response->headers->setCookie(new Cookie(
+                    (string) $name,
+                    '',
+                    1,
+                    '/',
+                    null,
+                    $secure,
+                    true,
+                    false,
+                    'lax'
+                ));
+            }
+        }
+    }
+
+    /**
+     * Validates the PKCE state cookie, exchanges the authorization code, and redirects
+     * to the originally requested path with the session cookie set.
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $request The callback request.
+     * @return Response A redirect response on success, or a 400 error response on failure.
+     */
     private function handleCallback(\Symfony\Component\HttpFoundation\Request $request): Response
     {
         $pkceValue = $request->cookies->get('__nextgen_pkce');
@@ -232,6 +303,12 @@ readonly class ZitadelListener implements EventSubscriberInterface
         return $response;
     }
 
+    /**
+     * Clears the session cookie and redirects to Zitadel's end-session endpoint.
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $request The logout request.
+     * @return Response A redirect response to the OIDC end-session endpoint.
+     */
     private function handleLogout(\Symfony\Component\HttpFoundation\Request $request): Response
     {
         $params   = http_build_query(['post_logout_redirect_uri' => $this->config->postLogoutRedirect]);
@@ -251,17 +328,16 @@ readonly class ZitadelListener implements EventSubscriberInterface
         return $response;
     }
 
-    private function scheduleStaleNextgenCookieDeletion(RequestEvent $event, \Symfony\Component\HttpFoundation\Request $request): void
-    {
-        // We attach a response listener to delete stale cookies after the response is built
-        // by registering them as attributes to be picked up downstream — but since we can't
-        // hook into the response here without a ResponseEvent, we record which cookies to
-        // delete as a request attribute, and the response is modified in the kernel.response
-        // event. For simplicity here, we do nothing — stale cookies will expire naturally.
-        // The PSR-15 core middleware handles this fully; Symfony's stateless nature means
-        // stale cookies on public routes are low-risk.
-    }
-
+    /**
+     * Returns true when any resolved form of `$controller` carries a
+     * {@see \Zitadel\Sdk\Attribute\AllowAnonymous} attribute.
+     *
+     * Supports all Symfony controller forms: `[$object, 'method']`, invokable objects,
+     * and `'ClassName::method'` strings.
+     *
+     * @param mixed $controller The resolved controller callable.
+     * @return bool True if the controller or its method has the AllowAnonymous attribute.
+     */
     private function controllerHasAllowAnonymous(mixed $controller): bool
     {
         if (is_array($controller) && count($controller) === 2) {
@@ -307,6 +383,16 @@ readonly class ZitadelListener implements EventSubscriberInterface
         return false;
     }
 
+    /**
+     * Returns true when `$path` matches any entry in `$routes`.
+     *
+     * Entries ending with `*` are treated as prefix wildcards. All other entries
+     * are matched by strict equality.
+     *
+     * @param string   $path   The request path to test.
+     * @param string[] $routes Route patterns to match against.
+     * @return bool True if any pattern matches the given path.
+     */
     private function matchesRoutes(string $path, array $routes): bool
     {
         foreach ($routes as $pattern) {
@@ -322,6 +408,12 @@ readonly class ZitadelListener implements EventSubscriberInterface
         return false;
     }
 
+    /**
+     * Validates that `$next` is a safe relative path suitable for use as a post-login redirect.
+     *
+     * @param string $next The candidate redirect path from the PKCE state cookie.
+     * @return string|null The sanitized path, or null if the input is unsafe.
+     */
     private function sanitizeNext(string $next): ?string
     {
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
@@ -339,6 +431,12 @@ readonly class ZitadelListener implements EventSubscriberInterface
         return $next;
     }
 
+    /**
+     * Builds a 400 Bad Request HTML error response with a human-readable message.
+     *
+     * @param string $message The authentication error description shown to the user.
+     * @return Response A 400 response with `Content-Type: text/html; charset=utf-8`.
+     */
     private function badRequest(string $message): Response
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'

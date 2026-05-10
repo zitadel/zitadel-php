@@ -23,12 +23,26 @@ use Zitadel\Sdk\Exception\PkceException;
  */
 readonly class CallbackController
 {
+    /**
+     * @param ZitadelConfig  $config    SDK configuration (issuer, cookie secret, redirect paths).
+     * @param TokenValidator $validator JWT validator used to verify the access token after exchange.
+     */
     public function __construct(
         private ZitadelConfig  $config,
         private TokenValidator $validator,
     ) {
     }
 
+    /**
+     * Handles the OAuth 2.0 PKCE callback.
+     *
+     * Validates the PKCE state cookie and `state` query parameter, exchanges the
+     * authorization `code` for tokens, validates the resulting access token, sets
+     * the `__nextgen_auth` session cookie, and redirects to the originally requested path.
+     *
+     * @param Request $request The callback request carrying `code` and `state` query params.
+     * @return RedirectResponse|Response Redirect on success, or a 400 error response on failure.
+     */
     public function __invoke(Request $request): RedirectResponse|Response
     {
         $pkceValue = $request->cookie('__nextgen_pkce');
@@ -91,6 +105,15 @@ readonly class CallbackController
         return $response;
     }
 
+    /**
+     * Validates that `$next` is a safe relative path suitable for use as a post-login redirect.
+     *
+     * Rejects absolute URLs, protocol-relative URLs (`//`), and paths containing backslashes
+     * to prevent open-redirect vulnerabilities.
+     *
+     * @param string $next The candidate redirect path from the PKCE state cookie.
+     * @return string|null The sanitized path, or null if the input is unsafe.
+     */
     private function sanitizeNext(string $next): ?string
     {
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
@@ -108,6 +131,12 @@ readonly class CallbackController
         return $next;
     }
 
+    /**
+     * Builds a 400 Bad Request HTML error response with a human-readable message.
+     *
+     * @param string $message The authentication error description shown to the user.
+     * @return Response A 400 response with `Content-Type: text/html; charset=utf-8`.
+     */
     private function badRequest(string $message): Response
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'

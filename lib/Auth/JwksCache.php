@@ -90,15 +90,15 @@ final class JwksCache implements JwksCacheInterface
         }
 
         curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => $timeoutSeconds,
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_RETURNTRANSFER      => true,
+            CURLOPT_CONNECTTIMEOUT_MS   => $timeoutSeconds * 1000,
+            CURLOPT_TIMEOUT_MS          => $timeoutSeconds * 1000,
+            CURLOPT_SSL_VERIFYPEER      => true,
+            CURLOPT_SSL_VERIFYHOST      => 2,
         ]);
 
         $body  = curl_exec($ch);
         $errno = curl_errno($ch);
-        curl_close($ch);
 
         if ($errno !== 0 || $body === false || !is_string($body)) {
             return null;

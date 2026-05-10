@@ -138,14 +138,24 @@ Add paths to ``ignoredRoutes`` when constructing
        ignoredRoutes: ['/health', '/public/*', '/login'],
    );
 
-Per-controller or per-method
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Per-route (``#[AllowAnonymous]``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :php:class:`Zitadel\Sdk\Attribute\AllowAnonymous` is **not supported** in Slim 4.
-The middleware must run before routing to intercept the callback and logout paths,
-so the matched route is not available for reflection when the middleware runs.
 
-Use ``ignoredRoutes`` to exempt specific paths instead.
+The ``#[AllowAnonymous]`` check in :php:class:`Zitadel\Sdk\Middleware\ZitadelMiddleware`
+works by reading the ``Mezzio\Router\RouteResult`` request attribute, which is set by
+Mezzio's ``RouteMiddleware`` after routing resolves. Slim does not set this attribute,
+so reflection never fires regardless of middleware placement.
+
+Use ``ignoredRoutes`` to exempt specific paths:
+
+.. code-block:: php
+
+   $config = new ZitadelConfig(
+       // ...
+       ignoredRoutes: ['/health', '/status', '/api/public/*'],
+   );
 
 
 Forwarding Tokens

@@ -8,40 +8,61 @@ use PHPUnit\Framework\TestCase;
 use Zitadel\Sdk\Auth\JwksCache;
 
 /**
- * Tests for {@see JwksCache} that don't require a live JWKS endpoint.
+ * Unit tests for {@see JwksCache} that do not require a live JWKS endpoint.
  *
- * Integration-level tests (live JWKS fetch) are in the spec suite.
+ * Live HTTP fetch and unreachable-endpoint behaviour are covered by the
+ * integration spec suite, which spins up a navikt mock-oauth2-server.
  */
 final class JwksCacheTest extends TestCase
 {
-    public function testReturnsNullForUnreachableEndpoint(): void
+    protected function setUp(): void
     {
-        $cache = new JwksCache();
-        $key   = $cache->getPublicKey(
-            'https://localhost:1/does-not-exist/keys',
-            null,
-            'RS256',
-            300,
-            1,
-        );
-
-        self::assertNull($key);
+        // Reset the static in-process store between tests.
+        $ref = new \ReflectionProperty(JwksCache::class, 'store');
+        $ref->setValue(null, []);
     }
 
-    public function testCacheMissReturnsNull(): void
+    public function testCacheHitReturnsStoredKeyWithoutFetching(): void
     {
-        // Full JWKS-fetch tests (live HTTP) are in the spec suite.
-        // This confirms the cache returns null for a non-existent unreachable endpoint,
-        // exercising the cURL failure path.
-        $cache = new JwksCache();
-        $key   = $cache->getPublicKey(
-            'https://0.0.0.0:1/no-such-jwks',
-            'any-kid',
-            'RS256',
-            300,
-            1,
-        );
+        // Prime the static cache with a fake key via reflection.
+        $fakeKey = openssl_pkey_new(['private_key_bits' => 512, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($fakeKey);
 
-        self::assertNull($key);
+        $cacheKey = 'https://example.com/keys:my-kid';
+        $ref      = new \ReflectionProperty(JwksCache::class, 'store');
+        $ref->setValue(null, [
+            $cacheKey => ['key' => $fakeKey, 'fetchedAt' => time()],
+        ]);
+
+        $cache  = new JwksCache();
+        // TTL=300, so the entry is fresh — no HTTP fetch should occur.
+        $result = $cache->getPublicKey('https://example.com/keys', 'my-kid', 'RS256', 300, 1);
+
+        self::assertSame($fakeKey, $result);
+    }
+
+    public function testExpiredCacheEntryReturnsNullWhenUnreachable(): void
+    {
+        // Prime the cache with an entry that's already expired (fetchedAt = 0).
+        $fakeKey  = openssl_pkey_new(['private_key_bits' => 512, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($fakeKey);
+
+        // Use the SAME URL that the cache will look up, so the entry is found
+        // but treated as expired (fetchedAt=0 is long past the TTL=1 threshold).
+        $cacheKey = 'xyz://nowhere/keys:stale-kid';
+        $ref      = new \ReflectionProperty(JwksCache::class, 'store');
+        $ref->setValue(null, [
+            $cacheKey => ['key' => $fakeKey, 'fetchedAt' => 0],
+        ]);
+
+        $cache = new JwksCache();
+        // TTL=1 but fetchedAt=0 means the entry expired long ago.
+        // The cache will attempt a re-fetch; the invalid URL returns null.
+        // Use an invalid scheme so curl fails instantly without a TCP connection.
+        // 'xyz://' is not a scheme curl supports — CURLE_UNSUPPORTED_PROTOCOL
+        // is returned immediately with no TCP connection attempted.
+        $result = $cache->getPublicKey('xyz://nowhere/keys', 'stale-kid', 'RS256', 1, 1);
+
+        self::assertNull($result);
     }
 }

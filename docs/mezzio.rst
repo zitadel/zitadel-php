@@ -52,6 +52,7 @@ Register the middleware and its dependencies in
    use Nyholm\Psr7\Factory\Psr17Factory;
    use Psr\Http\Message\ResponseFactoryInterface;
    use Zitadel\Sdk\Auth\JwksCache;
+   use Zitadel\Sdk\Auth\JwksCacheInterface;
    use Zitadel\Sdk\Auth\TokenValidator;
    use Zitadel\Sdk\Config\ZitadelConfig;
    use Zitadel\Sdk\Middleware\ZitadelMiddleware;
@@ -59,7 +60,7 @@ Register the middleware and its dependencies in
    return [
        'dependencies' => [
            'factories' => [
-               ZitadelConfig::class => fn($c) => new ZitadelConfig(
+               ZitadelConfig::class     => fn($c) => new ZitadelConfig(
                    issuerUrl:     $_ENV['ZITADEL_ISSUER_URL'],
                    clientId:      $_ENV['ZITADEL_CLIENT_ID'],
                    redirectUri:   $_ENV['ZITADEL_REDIRECT_URI'],
@@ -67,14 +68,23 @@ Register the middleware and its dependencies in
                    protectAll:    true,
                    ignoredRoutes: ['/health'],
                ),
+               TokenValidator::class    => fn($c) => new TokenValidator(
+                   $c->get(ZitadelConfig::class),
+                   $c->get(JwksCacheInterface::class),
+               ),
+               ZitadelMiddleware::class => fn($c) => new ZitadelMiddleware(
+                   $c->get(ZitadelConfig::class),
+                   $c->get(TokenValidator::class),
+                   $c->get(ResponseFactoryInterface::class),
+               ),
+           ],
+           'aliases' => [
+               ResponseFactoryInterface::class => Psr17Factory::class,
+               JwksCacheInterface::class       => JwksCache::class,
            ],
            'invokables' => [
-               JwksCache::class                => JwksCache::class,
-               ResponseFactoryInterface::class => Psr17Factory::class,
-           ],
-           'autowires' => [
-               TokenValidator::class,
-               ZitadelMiddleware::class,
+               JwksCache::class    => JwksCache::class,
+               Psr17Factory::class => Psr17Factory::class,
            ],
        ],
    ];

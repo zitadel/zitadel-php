@@ -64,6 +64,17 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
     ) {
     }
 
+    /**
+     * Processes an incoming server request and returns a response.
+     *
+     * Intercepts the full Zitadel authentication lifecycle: callback, logout, ignored
+     * routes, token validation, `#[AllowAnonymous]` reflection, protected-route redirect,
+     * and stale-cookie cleanup for public unauthenticated requests.
+     *
+     * @param ServerRequestInterface  $request The incoming PSR-7 server request.
+     * @param RequestHandlerInterface $handler The next handler in the PSR-15 pipeline.
+     * @return ResponseInterface The HTTP response.
+     */
     #[\Override]
     public function process(
         ServerRequestInterface  $request,
@@ -113,6 +124,14 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         return $this->deleteStaleNextgenCookies($response, $request);
     }
 
+    /**
+     * Validates the PKCE state cookie, exchanges the authorization code, and redirects
+     * to the originally requested path with the session cookie set.
+     *
+     * @param ServerRequestInterface $request  The callback request.
+     * @param bool                   $isSecure Whether the request was made over HTTPS.
+     * @return ResponseInterface A 302 redirect on success, or a 400 error response on failure.
+     */
     private function handleCallback(ServerRequestInterface $request, bool $isSecure): ResponseInterface
     {
         $pkce = PkceStateCookie::read($request, $this->config->cookieSecret);
@@ -164,6 +183,12 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
             ->withHeader('Location', $next);
     }
 
+    /**
+     * Clears the session cookie and redirects to Zitadel's end-session endpoint.
+     *
+     * @param ServerRequestInterface $request The logout request (used to collect stale cookies).
+     * @return ResponseInterface A 302 redirect to the OIDC end-session endpoint.
+     */
     private function handleLogout(ServerRequestInterface $request): ResponseInterface
     {
         $params = http_build_query([
@@ -177,6 +202,15 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         return $this->deleteStaleNextgenCookies($response, $request);
     }
 
+    /**
+     * Generates a PKCE challenge and redirects to the Zitadel authorization endpoint.
+     *
+     * Stores the verifier, state, and return-to path in an encrypted `__nextgen_pkce` cookie.
+     *
+     * @param ServerRequestInterface $request  The protected request being redirected.
+     * @param bool                   $isSecure Whether the request was made over HTTPS.
+     * @return ResponseInterface A 302 redirect to the Zitadel authorization endpoint.
+     */
     private function redirectToLogin(ServerRequestInterface $request, bool $isSecure): ResponseInterface
     {
         $uri      = $request->getUri();
@@ -196,6 +230,12 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         return PkceStateCookie::write($response, $verifier, $state, $next, $this->config->cookieSecret, $isSecure);
     }
 
+    /**
+     * Extracts the raw JWT from the request — preferring `Authorization: Bearer` over cookie.
+     *
+     * @param ServerRequestInterface $request The incoming request.
+     * @return string|null The raw token string, or null if neither source is present.
+     */
     private function extractToken(ServerRequestInterface $request): ?string
     {
         $authHeader = $request->getHeaderLine('Authorization');
@@ -209,6 +249,14 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         return is_string($cookie) && $cookie !== '' ? $cookie : null;
     }
 
+    /**
+     * Appends expired `Set-Cookie` directives to delete every `__nextgen*` cookie present
+     * in the incoming request.
+     *
+     * @param ResponseInterface      $response The response to augment.
+     * @param ServerRequestInterface $request  The request whose cookies are scanned.
+     * @return ResponseInterface The response with stale-cookie deletion headers added.
+     */
     private function deleteStaleNextgenCookies(
         ResponseInterface $response,
         ServerRequestInterface $request,
@@ -226,6 +274,17 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         return $response;
     }
 
+    /**
+     * Returns true when the matched route handler carries a
+     * {@see \Zitadel\Sdk\Attribute\AllowAnonymous} attribute.
+     *
+     * Inspects the `Mezzio\Router\RouteResult` request attribute set by Mezzio's
+     * `RouteMiddleware`. Returns false when the attribute is absent (e.g. when the
+     * middleware runs before routing).
+     *
+     * @param ServerRequestInterface $request The current request.
+     * @return bool True if the matched handler permits unauthenticated access.
+     */
     private function hasAllowAnonymous(ServerRequestInterface $request): bool
     {
         // RouteResult attribute is set by Mezzio's RouteMiddleware and some Yii 3 routers
@@ -243,6 +302,13 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         return false;
     }
 
+    /**
+     * Returns true when a class string has `#[AllowAnonymous]` on the class itself
+     * or on its `__invoke` method.
+     *
+     * @param mixed $handler The handler to inspect; non-string and non-existent classes return false.
+     * @return bool True if the class or its `__invoke` method has the AllowAnonymous attribute.
+     */
     private function classOrMethodHasAttribute(mixed $handler): bool
     {
         if (!is_string($handler) || !class_exists($handler)) {
@@ -281,6 +347,12 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         return false;
     }
 
+    /**
+     * Validates that `$next` is a safe relative path suitable for use as a post-login redirect.
+     *
+     * @param string $next The candidate redirect path from the PKCE state cookie.
+     * @return string|null The sanitized path, or null if the input is unsafe.
+     */
     private function sanitizeNext(string $next): ?string
     {
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
@@ -298,6 +370,12 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         return $next;
     }
 
+    /**
+     * Builds a 400 Bad Request HTML error response with a human-readable message.
+     *
+     * @param string $message The authentication error description shown to the user.
+     * @return ResponseInterface A 400 response with `Content-Type: text/html; charset=utf-8`.
+     */
     private function badRequest(string $message): ResponseInterface
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'

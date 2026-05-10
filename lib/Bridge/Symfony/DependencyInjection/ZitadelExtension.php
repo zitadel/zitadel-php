@@ -6,9 +6,9 @@ namespace Zitadel\Sdk\Bridge\Symfony\DependencyInjection;
 
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\Extension;
-use Symfony\Component\DependencyInjection\Reference;
 use Zitadel\Sdk\Auth\Algorithm;
 use Zitadel\Sdk\Auth\JwksCache;
+use Zitadel\Sdk\Auth\JwksCacheInterface;
 use Zitadel\Sdk\Auth\TokenType;
 use Zitadel\Sdk\Auth\TokenValidator;
 use Zitadel\Sdk\Bridge\Symfony\ArgumentResolver\ClaimsValueResolver;
@@ -27,6 +27,12 @@ use Zitadel\Sdk\Config\ZitadelConfig;
  */
 final class ZitadelExtension extends Extension
 {
+    /**
+     * Processes the bundle configuration and registers all Zitadel services.
+     *
+     * @param array<array<mixed>> $configs   Merged bundle configuration arrays.
+     * @param ContainerBuilder    $container The Symfony DI container being built.
+     */
     #[\Override]
     public function load(array $configs, ContainerBuilder $container): void
     {
@@ -64,24 +70,24 @@ final class ZitadelExtension extends Extension
                 $config['clock_skew_seconds'],
                 $config['jwks_ttl_seconds'],
                 $config['http_timeout_seconds'],
+                $config['jwks_path'],
+                $config['authorization_path'],
+                $config['token_path'],
+                $config['end_session_path'],
             ]);
 
         $container->register(JwksCache::class, JwksCache::class)
             ->setShared(true);
 
+        $container->setAlias(JwksCacheInterface::class, JwksCache::class);
+
         $container->register(TokenValidator::class, TokenValidator::class)
             ->setShared(true)
-            ->setArguments([
-                new Reference(ZitadelConfig::class),
-                new Reference(JwksCache::class),
-            ]);
+            ->setAutowired(true);
 
         $container->register(ZitadelListener::class, ZitadelListener::class)
             ->setShared(true)
-            ->setArguments([
-                new Reference(ZitadelConfig::class),
-                new Reference(TokenValidator::class),
-            ])
+            ->setAutowired(true)
             ->addTag('kernel.event_subscriber');
 
         $container->register(ClaimsValueResolver::class, ClaimsValueResolver::class)

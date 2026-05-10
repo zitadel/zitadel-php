@@ -3,8 +3,7 @@ Yii 3
 
 Yii 3 is PSR-15 native. The core
 :php:class:`Zitadel\Sdk\Middleware\ZitadelMiddleware` slots directly into the
-middleware pipeline — no adapter is required. The thin
-:php:class:`Zitadel\Sdk\Bridge\Yii\ZitadelBootstrap` helper wires the DI bindings.
+middleware pipeline — no adapter is required.
 
 .. note::
 
@@ -48,6 +47,7 @@ Bind the middleware and its dependencies in ``config/web/di.php``:
    use Nyholm\Psr7\Factory\Psr17Factory;
    use Psr\Http\Message\ResponseFactoryInterface;
    use Zitadel\Sdk\Auth\JwksCache;
+   use Zitadel\Sdk\Auth\JwksCacheInterface;
    use Zitadel\Sdk\Auth\TokenValidator;
    use Zitadel\Sdk\Config\ZitadelConfig;
    use Zitadel\Sdk\Middleware\ZitadelMiddleware;
@@ -56,7 +56,7 @@ Bind the middleware and its dependencies in ``config/web/di.php``:
        ResponseFactoryInterface::class => Psr17Factory::class,
 
        ZitadelConfig::class => [
-           '__class'       => ZitadelConfig::class,
+           'class'         => ZitadelConfig::class,
            '__construct()' => [
                'issuerUrl'     => $_ENV['ZITADEL_ISSUER_URL'],
                'clientId'      => $_ENV['ZITADEL_CLIENT_ID'],
@@ -67,9 +67,10 @@ Bind the middleware and its dependencies in ``config/web/di.php``:
            ],
        ],
 
-       JwksCache::class         => ['__class' => JwksCache::class],
-       TokenValidator::class    => ['__class' => TokenValidator::class],
-       ZitadelMiddleware::class => ['__class' => ZitadelMiddleware::class],
+       JwksCacheInterface::class => JwksCache::class,
+       JwksCache::class          => JwksCache::class,
+       TokenValidator::class     => TokenValidator::class,
+       ZitadelMiddleware::class  => ZitadelMiddleware::class,
    ];
 
 

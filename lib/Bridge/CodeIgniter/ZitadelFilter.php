@@ -7,6 +7,7 @@ namespace Zitadel\Sdk\Bridge\CodeIgniter;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\RedirectResponse;
+use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\Response;
 use CodeIgniter\HTTP\ResponseInterface;
 use Zitadel\Sdk\Attribute\AllowAnonymous;
@@ -50,10 +51,18 @@ final readonly class ZitadelFilter implements FilterInterface
      * Returns a CI4 `ResponseInterface` to short-circuit when handling the
      * callback, logout, or a protected-route redirect. Returns null to pass
      * control to the router for all other requests.
+     *
+     * @param RequestInterface $request   The incoming HTTP request.
+     * @param array<mixed>|null $arguments Optional filter arguments (unused).
+     * @return ResponseInterface|null Response to short-circuit, or null to continue routing.
      */
     #[\Override]
-    public function before(IncomingRequest $request, $arguments = null): ?ResponseInterface
+    public function before(RequestInterface $request, $arguments = null): ?ResponseInterface
     {
+        if (!$request instanceof IncomingRequest) {
+            return null;
+        }
+
         $path = '/' . ltrim($request->getPath(), '/');
 
         // Handle callback
@@ -117,8 +126,9 @@ final readonly class ZitadelFilter implements FilterInterface
                 '__nextgen_pkce',
                 $cookie,
                 600,
-                '/',
-                '',
+                '',     // domain
+                '/',    // path
+                '',     // prefix
                 $request->isSecure(),
                 true,
                 'Lax'
@@ -139,12 +149,27 @@ final readonly class ZitadelFilter implements FilterInterface
         return null;
     }
 
+    /**
+     * Post-processing hook — no action needed; returns the response unchanged.
+     *
+     * @param RequestInterface  $request   The processed HTTP request.
+     * @param ResponseInterface $response  The outgoing response.
+     * @param array<mixed>|null $arguments Optional filter arguments (unused).
+     * @return ResponseInterface The unmodified response.
+     */
     #[\Override]
-    public function after(IncomingRequest $request, ResponseInterface $response, $arguments = null): ResponseInterface
+    public function after(RequestInterface $request, ResponseInterface $response, $arguments = null): ResponseInterface
     {
         return $response;
     }
 
+    /**
+     * Validates the PKCE state cookie, exchanges the authorization code, validates the
+     * resulting access token, and redirects to the originally requested path.
+     *
+     * @param IncomingRequest $request The callback request containing `code` and `state` query params.
+     * @return ResponseInterface Redirect with `__nextgen_auth` cookie set, or a 400 error response.
+     */
     private function handleCallback(IncomingRequest $request): ResponseInterface
     {
         $pkceValue = $request->getCookie('__nextgen_pkce');
@@ -189,12 +214,18 @@ final readonly class ZitadelFilter implements FilterInterface
         $secure = $request->isSecure();
 
         $response = response()->redirect($next);
-        $response->setCookie('__nextgen_auth', $accessToken, $maxAge, '/', '', $secure, true, 'Lax');
+        $response->setCookie('__nextgen_auth', $accessToken, $maxAge, '', '/', '', $secure, true, 'Lax');
         $response->deleteCookie('__nextgen_pkce', '', '/');
 
         return $response;
     }
 
+    /**
+     * Clears the session cookie and redirects to Zitadel's end-session endpoint.
+     *
+     * @param IncomingRequest $request The logout request (used to determine scheme for cookie flags).
+     * @return ResponseInterface Redirect to the OIDC end-session endpoint with the auth cookie deleted.
+     */
     private function handleLogout(IncomingRequest $request): ResponseInterface
     {
         $params   = http_build_query(['post_logout_redirect_uri' => $this->config->postLogoutRedirect]);
@@ -204,6 +235,12 @@ final readonly class ZitadelFilter implements FilterInterface
         return $response;
     }
 
+    /**
+     * Returns true when the matched controller class or action method carries
+     * a {@see \Zitadel\Sdk\Attribute\AllowAnonymous} attribute.
+     *
+     * @return bool True if anonymous access is permitted for the current route.
+     */
     private function hasAllowAnonymous(): bool
     {
         try {
@@ -230,6 +267,16 @@ final readonly class ZitadelFilter implements FilterInterface
         return false;
     }
 
+    /**
+     * Returns true when `$path` matches any entry in `$routes`.
+     *
+     * Entries ending with `*` are treated as prefix wildcards (`/api/*` matches `/api/v1/users`).
+     * All other entries are matched by strict equality.
+     *
+     * @param string   $path   The request path to test.
+     * @param string[] $routes Route patterns to match against.
+     * @return bool True if any pattern matches the given path.
+     */
     private function matchesRoutes(string $path, array $routes): bool
     {
         foreach ($routes as $pattern) {
@@ -245,6 +292,15 @@ final readonly class ZitadelFilter implements FilterInterface
         return false;
     }
 
+    /**
+     * Validates that `$next` is a safe relative path suitable for use as a post-login redirect.
+     *
+     * Rejects absolute URLs, protocol-relative URLs (`//`), and paths containing backslashes
+     * to prevent open-redirect vulnerabilities.
+     *
+     * @param string $next The candidate redirect path from the PKCE state cookie.
+     * @return string|null The sanitized path, or null if the input is unsafe.
+     */
     private function sanitizeNext(string $next): ?string
     {
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
@@ -262,6 +318,12 @@ final readonly class ZitadelFilter implements FilterInterface
         return $next;
     }
 
+    /**
+     * Builds a 400 Bad Request HTML error response with a human-readable message.
+     *
+     * @param string $message The authentication error description shown to the user.
+     * @return ResponseInterface A 400 response with `Content-Type: text/html; charset=utf-8`.
+     */
     private function badRequest(string $message): ResponseInterface
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'

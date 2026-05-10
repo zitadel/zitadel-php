@@ -13,7 +13,9 @@ application.
 
 .. note::
 
-   Requires ``phalcon/phalcon ^5.0``.
+   Requires ``phalcon/phalcon ^6.0``. The bridge uses Phalcon 6 APIs directly
+   (``$_COOKIE`` for cookie reads, ``header()`` with ``replace=false`` for
+   cookie writes) and is **not compatible** with Phalcon 5.
 
 
 Installation

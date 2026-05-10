@@ -78,6 +78,20 @@ readonly class ZitadelConfig
      * @param int                  $httpTimeoutSeconds Timeout (seconds) for HTTP calls: JWKS key
      *                                                  fetch and authorization code exchange.
      *                                                  Default: `5`
+     * @param string               $jwksPath           URL path for the JWKS endpoint, relative to
+     *                                                  `$issuerUrl`. Override for non-Zitadel servers
+     *                                                  (e.g. `/jwks` for navikt mock-oauth2-server).
+     *                                                  Default: `/oauth/v2/keys`
+     * @param string               $authorizationPath  URL path for the authorization endpoint.
+     *                                                  Default: `/oauth/v2/authorize`
+     * @param string               $tokenPath          URL path for the token endpoint.
+     *                                                  Default: `/oauth/v2/token`
+     * @param string               $endSessionPath     URL path for the end-session endpoint.
+     *                                                  Default: `/oidc/v1/end_session`
+     * @throws \InvalidArgumentException If `$cookieSecret` is not a 64-character hex string,
+     *                                   `$clockSkewSeconds` or `$jwksTtlSeconds` or
+     *                                   `$httpTimeoutSeconds` are negative, or
+     *                                   `$allowedAlgorithms` / `$allowedTokenTypes` are empty.
      */
     public function __construct(
         // ── Required: OIDC identity ──────────────────────────────────────────
@@ -104,6 +118,11 @@ readonly class ZitadelConfig
         public int                  $clockSkewSeconds   = 5,
         public int                  $jwksTtlSeconds     = 300,
         public int                  $httpTimeoutSeconds = 5,
+        // ── Optional: endpoint path overrides (for non-Zitadel OIDC servers) ─
+        public string               $jwksPath           = '/oauth/v2/keys',
+        public string               $authorizationPath  = '/oauth/v2/authorize',
+        public string               $tokenPath          = '/oauth/v2/token',
+        public string               $endSessionPath     = '/oidc/v1/end_session',
     ) {
         foreach (['protectedRoutes' => $protectedRoutes, 'ignoredRoutes' => $ignoredRoutes] as $name => $value) {
             if (!array_is_list($value)) {
@@ -150,27 +169,27 @@ readonly class ZitadelConfig
         }
     }
 
-    /** Returns the JWKS endpoint URI derived from the issuer URL. */
+    /** Returns the JWKS endpoint URI. */
     public function jwksUri(): string
     {
-        return rtrim($this->issuerUrl, '/') . '/oauth/v2/keys';
+        return rtrim($this->issuerUrl, '/') . $this->jwksPath;
     }
 
     /** Returns the OAuth 2.0 authorization endpoint URI. */
     public function authorizationEndpoint(): string
     {
-        return rtrim($this->issuerUrl, '/') . '/oauth/v2/authorize';
+        return rtrim($this->issuerUrl, '/') . $this->authorizationPath;
     }
 
     /** Returns the OAuth 2.0 token endpoint URI. */
     public function tokenEndpoint(): string
     {
-        return rtrim($this->issuerUrl, '/') . '/oauth/v2/token';
+        return rtrim($this->issuerUrl, '/') . $this->tokenPath;
     }
 
     /** Returns the OIDC end-session endpoint URI for single sign-out. */
     public function endSessionEndpoint(): string
     {
-        return rtrim($this->issuerUrl, '/') . '/oidc/v1/end_session';
+        return rtrim($this->issuerUrl, '/') . $this->endSessionPath;
     }
 }

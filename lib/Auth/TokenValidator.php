@@ -202,6 +202,12 @@ readonly class TokenValidator
         );
     }
 
+    /**
+     * Decodes a base64url-encoded string into raw binary (non-strict; invalid chars become null bytes).
+     *
+     * @param string $input Base64url-encoded value (no padding required).
+     * @return string Decoded binary string.
+     */
     private static function base64urlDecode(string $input): string
     {
         return (string) base64_decode(
@@ -210,6 +216,12 @@ readonly class TokenValidator
         );
     }
 
+    /**
+     * Alias for {@see base64urlDecode()} — decodes a base64url-encoded string into raw binary.
+     *
+     * @param string $input Base64url-encoded value (no padding required).
+     * @return string Decoded binary string.
+     */
     private static function base64urlDecodeRaw(string $input): string
     {
         return self::base64urlDecode($input);
@@ -220,6 +232,9 @@ readonly class TokenValidator
      *
      * P1363 format: two fixed-length big-endian integers concatenated.
      * DER format: SEQUENCE { INTEGER r, INTEGER s }
+     *
+     * @param string $sig Raw P1363-encoded signature bytes (`r` || `s`).
+     * @return string|null DER-encoded signature, or null if the input length is odd.
      */
     private static function p1363ToDer(string $sig): ?string
     {

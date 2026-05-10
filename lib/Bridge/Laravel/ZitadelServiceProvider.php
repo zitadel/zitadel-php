@@ -37,6 +37,12 @@ use Zitadel\Sdk\Config\ZitadelConfig;
  */
 final class ZitadelServiceProvider extends ServiceProvider
 {
+    /**
+     * Registers all Zitadel SDK services as container singletons.
+     *
+     * Merges the default config, then binds {@see ZitadelConfig}, {@see JwksCache},
+     * and {@see TokenValidator} into the service container.
+     */
     #[\Override]
     public function register(): void
     {
@@ -70,6 +76,10 @@ final class ZitadelServiceProvider extends ServiceProvider
                 clockSkewSeconds:   (int) ($cfg['clock_skew_seconds'] ?? 5),
                 jwksTtlSeconds:     (int) ($cfg['jwks_ttl_seconds'] ?? 300),
                 httpTimeoutSeconds: (int) ($cfg['http_timeout_seconds'] ?? 5),
+                jwksPath:           (string) ($cfg['jwks_path'] ?? '/oauth/v2/keys'),
+                authorizationPath:  (string) ($cfg['authorization_path'] ?? '/oauth/v2/authorize'),
+                tokenPath:          (string) ($cfg['token_path'] ?? '/oauth/v2/token'),
+                endSessionPath:     (string) ($cfg['end_session_path'] ?? '/oidc/v1/end_session'),
             );
         });
 
@@ -81,7 +91,11 @@ final class ZitadelServiceProvider extends ServiceProvider
         ));
     }
 
-    #[\Override]
+    /**
+     * Bootstraps routes, middleware, config publishing, and the `zitadel` auth guard.
+     *
+     * @param Router $router The Illuminate router used to register the web middleware group entry.
+     */
     public function boot(Router $router): void
     {
         if ($this->app->runningInConsole()) {

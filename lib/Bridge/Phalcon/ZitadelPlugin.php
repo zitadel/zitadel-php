@@ -67,6 +67,10 @@ readonly class ZitadelPlugin
      * (callback, logout, or protected-route redirect). Returning false signals
      * to `index.php` that `handle()` returned false and the response has already
      * been sent or is stored in the DI container.
+     *
+     * @param Event       $event       The Phalcon event object (unused).
+     * @param Application $application The MVC application instance; provides the DI container.
+     * @return bool True to continue routing, false when the response has already been sent.
      */
     public function beforeHandleRequest(Event $event, Application $application): bool
     {
@@ -92,7 +96,7 @@ readonly class ZitadelPlugin
 
         // Ignored routes pass through
         if ($this->matchesRoutes($path, $this->config->ignoredRoutes)) {
-            $di->set('zitadel.claims', null);
+            $di->set('zitadel.claims', static fn () => null);
             return true;
         }
 
@@ -101,8 +105,8 @@ readonly class ZitadelPlugin
         $token  = null;
         if (str_starts_with($bearer, 'Bearer ')) {
             $token = substr($bearer, 7);
-        } elseif ($request->hasCookie('__nextgen_auth')) {
-            $token = $request->getCookie('__nextgen_auth');
+        } elseif (isset($_COOKIE['__nextgen_auth'])) {
+            $token = $_COOKIE['__nextgen_auth'];
         }
 
         $claims = $token !== null ? $this->validator->validate((string) $token) : null;
@@ -120,19 +124,10 @@ readonly class ZitadelPlugin
         }
 
         // Public unauthenticated — delete stale cookies
-        $di->set('zitadel.claims', null);
-        $response = new Response();
+        $di->set('zitadel.claims', static fn () => null);
         foreach (array_keys($_COOKIE) as $name) {
             if (str_starts_with((string) $name, '__nextgen')) {
-                $response->setCookies()->set(
-                    (string) $name,
-                    '',
-                    1,
-                    '/',
-                    false,
-                    null,
-                    $request->isSecure()
-                );
+                header($this->buildCookieHeader((string) $name, '', 1, $request->isSecure()), false);
             }
         }
 
@@ -144,6 +139,10 @@ readonly class ZitadelPlugin
      *
      * Checks `#[AllowAnonymous]` when a protected redirect is pending.
      * If anonymous is allowed, clears the pending flag. Otherwise, redirects.
+     *
+     * @param Event               $event      The Phalcon event object (unused).
+     * @param DispatcherInterface $dispatcher The MVC dispatcher; provides controller and action metadata.
+     * @return bool True to allow dispatch to proceed, false when a redirect response has been sent.
      */
     public function beforeDispatch(Event $event, DispatcherInterface $dispatcher): bool
     {
@@ -160,14 +159,14 @@ readonly class ZitadelPlugin
 
             if (!empty($classRef->getAttributes(AllowAnonymous::class))) {
                 $di->remove('_zitadel_pending_redirect');
-                $di->set('zitadel.claims', null);
+                $di->set('zitadel.claims', static fn () => null);
                 return true;
             }
 
             if ($classRef->hasMethod($actionName) &&
                 !empty($classRef->getMethod($actionName)->getAttributes(AllowAnonymous::class))) {
                 $di->remove('_zitadel_pending_redirect');
-                $di->set('zitadel.claims', null);
+                $di->set('zitadel.claims', static fn () => null);
                 return true;
             }
         }
@@ -193,15 +192,7 @@ readonly class ZitadelPlugin
 
         $response = new Response();
         $response->redirect($authUrl, true);
-        $response->getCookies()->set(
-            '__nextgen_pkce',
-            $cookie,
-            time() + 600,
-            '/',
-            false,
-            null,
-            $request->isSecure()
-        );
+        $response->setRawHeader($this->buildCookieHeader('__nextgen_pkce', $cookie, time() + 600, $request->isSecure()));
         $di->set('response', $response);
         $response->send();
 
@@ -209,9 +200,20 @@ readonly class ZitadelPlugin
         return false;
     }
 
+    /**
+     * Validates the PKCE state cookie, exchanges the authorization code, and redirects
+     * to the originally requested path with the session cookie set.
+     *
+     * Emits `Set-Cookie` headers directly via `header(..., false)` to prevent Phalcon's
+     * `Headers::send()` from overwriting the first cookie with the second.
+     *
+     * @param Request     $request The callback request containing `code` and `state` query params.
+     * @param DiInterface $di      The DI container (unused here but present for symmetry with callers).
+     * @return Response A redirect response, or a 400 error response on any validation failure.
+     */
     private function handleCallback(Request $request, DiInterface $di): Response
     {
-        $pkceValue = $request->getCookie('__nextgen_pkce');
+        $pkceValue = $_COOKIE['__nextgen_pkce'] ?? null;
         if (!is_string($pkceValue) || $pkceValue === '') {
             return $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.');
         }
@@ -252,24 +254,46 @@ readonly class ZitadelPlugin
         $maxAge = max(0, $claims->exp - time());
         $secure = $request->isSecure();
 
+        // Use header() directly with replace=false so both Set-Cookie headers survive.
+        // Phalcon's Headers::send() calls header() with replace=true (the default), which
+        // means the second Set-Cookie would silently overwrite the first, losing the auth
+        // cookie before it ever reaches the browser.
+        header($this->buildCookieHeader('__nextgen_auth', $accessToken, time() + $maxAge, $secure), false);
+        header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
+
         $response = new Response();
         $response->redirect($next, true);
-        $response->getCookies()->set('__nextgen_auth', $accessToken, time() + $maxAge, '/', false, null, $secure);
-        $response->getCookies()->set('__nextgen_pkce', '', 1, '/', false, null, $secure);
 
         return $response;
     }
 
+    /**
+     * Clears the session cookie and redirects to Zitadel's end-session endpoint.
+     *
+     * @param Request $request The logout request (scheme is used for the cookie Secure flag).
+     * @return Response A redirect response to the OIDC end-session endpoint.
+     */
     private function handleLogout(Request $request): Response
     {
+        header($this->buildCookieHeader('__nextgen_auth', '', 1, $request->isSecure()), false);
+
         $params   = http_build_query(['post_logout_redirect_uri' => $this->config->postLogoutRedirect]);
         $response = new Response();
         $response->redirect($this->config->endSessionEndpoint() . '?' . $params, true);
-        $response->getCookies()->set('__nextgen_auth', '', 1, '/', false, null, $request->isSecure());
 
         return $response;
     }
 
+    /**
+     * Returns true when `$path` matches any entry in `$routes`.
+     *
+     * Entries ending with `*` are treated as prefix wildcards. All other entries
+     * are matched by strict equality.
+     *
+     * @param string   $path   The request path to test.
+     * @param string[] $routes Route patterns to match against.
+     * @return bool True if any pattern matches the given path.
+     */
     private function matchesRoutes(string $path, array $routes): bool
     {
         foreach ($routes as $pattern) {
@@ -285,6 +309,15 @@ readonly class ZitadelPlugin
         return false;
     }
 
+    /**
+     * Validates that `$next` is a safe relative path suitable for use as a post-login redirect.
+     *
+     * Rejects absolute URLs, protocol-relative URLs (`//`), and paths containing backslashes
+     * to prevent open-redirect vulnerabilities.
+     *
+     * @param string $next The candidate redirect path from the PKCE state cookie.
+     * @return string|null The sanitized path, or null if the input is unsafe.
+     */
     private function sanitizeNext(string $next): ?string
     {
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
@@ -302,6 +335,41 @@ readonly class ZitadelPlugin
         return $next;
     }
 
+    /**
+     * Builds a raw `Set-Cookie` header string for a given cookie name and value.
+     *
+     * Must be emitted via `header($str, false)` rather than through Phalcon's response
+     * headers API, which calls `header()` with `replace=true` and would overwrite earlier
+     * `Set-Cookie` headers from the same response.
+     *
+     * @param string $name   Cookie name.
+     * @param string $value  Cookie value (URL-encoded before inclusion).
+     * @param int    $expire Unix timestamp for the `Expires` attribute.
+     * @param bool   $secure Whether to add the `Secure` attribute.
+     * @return string A complete `Set-Cookie: ...` header string.
+     */
+    private function buildCookieHeader(string $name, string $value, int $expire, bool $secure): string
+    {
+        $parts = [
+            urlencode($name) . '=' . urlencode($value),
+            'Expires=' . gmdate('D, d M Y H:i:s T', $expire),
+            'Path=/',
+            'SameSite=Lax',
+            'HttpOnly',
+        ];
+        if ($secure) {
+            $parts[] = 'Secure';
+        }
+
+        return 'Set-Cookie: ' . implode('; ', $parts);
+    }
+
+    /**
+     * Builds a 400 Bad Request HTML error response with a human-readable message.
+     *
+     * @param string $message The authentication error description shown to the user.
+     * @return Response A 400 response with `Content-Type: text/html; charset=UTF-8`.
+     */
     private function badRequest(string $message): Response
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'

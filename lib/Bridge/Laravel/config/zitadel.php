@@ -49,4 +49,17 @@ return [
     'clock_skew_seconds'   => 5,
     'jwks_ttl_seconds'     => 300,
     'http_timeout_seconds' => 5,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Endpoint Path Overrides
+    |--------------------------------------------------------------------------
+    | Override the URL paths appended to issuer_url when building OIDC endpoint
+    | URIs. The defaults match Zitadel's API paths. Override these when using a
+    | non-Zitadel OIDC server (e.g. navikt/mock-oauth2-server for testing).
+    */
+    'jwks_path'            => env('ZITADEL_JWKS_PATH', '/oauth/v2/keys'),
+    'authorization_path'   => env('ZITADEL_AUTHORIZATION_PATH', '/oauth/v2/authorize'),
+    'token_path'           => env('ZITADEL_TOKEN_PATH', '/oauth/v2/token'),
+    'end_session_path'     => env('ZITADEL_END_SESSION_PATH', '/oidc/v1/end_session'),
 ];

@@ -31,6 +31,8 @@ final class ZitadelHolder
 
     /**
      * Sets the claims for the current request. Called only by {@see ZitadelFilter}.
+     *
+     * @param Claims|null $claims Validated JWT claims, or null for unauthenticated requests.
      */
     public static function set(?Claims $claims): void
     {
@@ -39,6 +41,8 @@ final class ZitadelHolder
 
     /**
      * Returns the validated claims for the current request, or null if unauthenticated.
+     *
+     * @return Claims|null Authenticated claims, or null when no valid session exists.
      */
     public static function claims(): ?Claims
     {

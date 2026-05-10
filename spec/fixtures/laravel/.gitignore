@@ -1,0 +1,7 @@
+vendor/
+bootstrap/cache/packages.php
+bootstrap/cache/services.php
+storage/framework/sessions/
+storage/framework/views/*.php
+storage/logs/laravel.log
+.env

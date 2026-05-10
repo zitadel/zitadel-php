@@ -238,10 +238,11 @@ PKCE flow (redirect → callback → cookie), and plugging into the security fir
 would require implementing ``UserProviderInterface``, ``PassportInterface``, and YAML
 firewall config with no practical benefit for this use case.
 
-``KernelEvents::REQUEST`` at priority 8 is a well-established pattern for pre-routing
-intercepts (the router listener runs at priority −32). ``ClaimsValueResolver`` is the
-idiomatic Symfony 6+ pattern for request-derived controller parameters, analogous to
-Symfony's own ``UserValueResolver`` for ``#[CurrentUser]``.
+``KernelEvents::REQUEST`` at priority 33 is a well-established pattern for pre-routing
+intercepts (the ``RouterListener`` runs at priority 32; the Zitadel listener fires one
+step before it). ``ClaimsValueResolver`` is the idiomatic Symfony 6+ pattern for
+request-derived controller parameters, analogous to Symfony's own ``UserValueResolver``
+for ``#[CurrentUser]``.
 
 If you need ``isGranted()`` or role-based access control, implement a custom
 ``UserProvider`` on top of the :php:class:`Zitadel\Sdk\Auth\Claims` object from the

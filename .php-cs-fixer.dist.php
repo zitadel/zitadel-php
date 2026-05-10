@@ -7,7 +7,9 @@ $config->setRules([
     '@PSR12' => true,
 ])
     ->setFinder(PhpCsFixer\Finder::create()
-        ->in(__DIR__))
+        ->in(__DIR__)
+        ->exclude('vendor')
+        ->exclude('spec/fixtures'))
     ->setRiskyAllowed(true)
     ->setParallelConfig(ParallelConfigFactory::detect())
     ->setCacheFile(__DIR__ . '/build/.php-cs-fixer.cache')

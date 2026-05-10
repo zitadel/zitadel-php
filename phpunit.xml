@@ -18,10 +18,12 @@
     </testsuite>
     <testsuite name="specs">
       <directory suffix="Spec.php">./spec</directory>
+      <exclude>./spec/fixtures</exclude>
+      <exclude>./spec/AbstractIntegrationSpec.php</exclude>
     </testsuite>
   </testsuites>
   <php>
-    <ini name="error_reporting" value="E_ALL &amp; ~E_DEPRECATED &amp; ~E_USER_DEPRECATED"/>
+    <ini name="error_reporting" value="8191"/>
     <ini name="memory_limit" value="1024M"/>
     <env name="APP_ENV" value="test"/>
   </php>

@@ -126,7 +126,6 @@ final class PkceFlow
         $body  = curl_exec($ch);
         $errno = curl_errno($ch);
         $error = curl_error($ch);
-        curl_close($ch);
 
         if ($errno !== 0 || $body === false) {
             throw new PkceException("[zitadel] Token exchange request failed: {$error} (errno {$errno})");

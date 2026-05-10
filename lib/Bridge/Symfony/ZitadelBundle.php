@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Zitadel\Sdk\Bridge\Symfony;
 
-use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Zitadel\Sdk\Bridge\Symfony\DependencyInjection\ZitadelExtension;
 
@@ -20,12 +19,11 @@ use Zitadel\Sdk\Bridge\Symfony\DependencyInjection\ZitadelExtension;
  */
 final class ZitadelBundle extends Bundle
 {
-    #[\Override]
-    public function build(ContainerBuilder $container): void
-    {
-        parent::build($container);
-    }
-
+    /**
+     * Returns the DI extension that processes `config/packages/zitadel.yaml`.
+     *
+     * @return ZitadelExtension The bundle's dependency-injection extension.
+     */
     #[\Override]
     public function getContainerExtension(): ZitadelExtension
     {

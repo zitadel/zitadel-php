@@ -4,23 +4,24 @@ declare(strict_types=1);
 
 namespace Zitadel\Sdk\Spec;
 
+use PHPUnit\Framework\Attributes\Group;
+
 /**
  * Integration spec for the Symfony bridge.
  *
  * The fixture app lives at `spec/fixtures/symfony/` and runs on port 9002.
- *
- * @group integration
  */
+#[Group('integration')]
 final class SymfonySpec extends AbstractIntegrationSpec
 {
     #[\Override]
-    protected function baseUrl(): string
+    protected static function fixtureDir(): string
     {
-        return 'http://localhost:' . $this->port();
+        return __DIR__ . '/fixtures/symfony';
     }
 
     #[\Override]
-    protected function port(): int
+    protected static function fixturePort(): int
     {
         return 9002;
     }

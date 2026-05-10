@@ -5,22 +5,35 @@
     "license": "Apache-2.0",
     "require": {
         "php": "^8.3",
-        "yiisoft/yii-web": "^3.0",
+        "yiisoft/di": "^1.0",
         "nyholm/psr7": "^1.0",
+        "nyholm/psr7-server": "^1.0",
+        "vlucas/phpdotenv": "^5.6",
         "zitadel/zitadel-php": "*@dev"
     },
     "repositories": [
         {
             "type": "path",
             "url": "../../..",
-            "options": {"symlink": true}
+            "options": {
+                "symlink": true
+            }
         }
     ],
     "autoload": {
-        "psr-4": {"App\\": "src/"}
+        "psr-4": {
+            "App\\": "src/"
+        }
     },
+    "autoload-dev": {},
     "config": {
-        "platform": {"php": "8.3.0"},
-        "allow-plugins": {"php-http/discovery": true}
-    }
+        "platform": {
+            "php": "8.3.0"
+        },
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
 }

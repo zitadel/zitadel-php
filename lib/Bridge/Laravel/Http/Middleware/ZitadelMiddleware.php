@@ -37,7 +37,18 @@ readonly class ZitadelMiddleware
     ) {
     }
 
-    #[\Override]
+    /**
+     * Processes an incoming request through the Zitadel authentication lifecycle.
+     *
+     * Ignored routes pass through immediately. Otherwise, extracts a Bearer token or
+     * `__nextgen_auth` cookie, validates it, and either attaches claims to the request
+     * or redirects to Zitadel for login. Public unauthenticated requests have stale
+     * `__nextgen*` cookies cleaned up before the response is returned.
+     *
+     * @param Request $request The incoming HTTP request.
+     * @param Closure $next    The next middleware handler in the pipeline.
+     * @return SymfonyResponse The response — either from the next handler or a redirect.
+     */
     public function handle(Request $request, Closure $next): SymfonyResponse
     {
         $path = $request->path();
@@ -74,11 +85,11 @@ readonly class ZitadelMiddleware
             $challenge = PkceFlow::generateCodeChallenge($verifier);
             $authUrl   = PkceFlow::buildAuthorizationUrl($this->config, $challenge, $state);
 
-            $next   = $request->getRequestUri();
-            $cookie = PkceStateCookie::encrypt(
+            $returnTo = $request->getRequestUri();
+            $cookie   = PkceStateCookie::encrypt(
                 $verifier,
                 $state,
-                $next,
+                $returnTo,
                 $this->config->cookieSecret
             );
 
@@ -120,6 +131,13 @@ readonly class ZitadelMiddleware
         return $response;
     }
 
+    /**
+     * Returns true when the matched controller class or action method carries
+     * a {@see \Zitadel\Sdk\Attribute\AllowAnonymous} attribute.
+     *
+     * @param Request $request The current request; used to retrieve the resolved route.
+     * @return bool True if anonymous access is permitted for the matched route.
+     */
     private function hasAllowAnonymous(Request $request): bool
     {
         $route = $request->route();
@@ -146,6 +164,16 @@ readonly class ZitadelMiddleware
         return false;
     }
 
+    /**
+     * Returns true when `$path` matches any entry in `$routes`.
+     *
+     * Entries ending with `*` are treated as prefix wildcards. All other entries
+     * are matched by strict equality.
+     *
+     * @param string   $path   The request path to test.
+     * @param string[] $routes Route patterns to match against.
+     * @return bool True if any pattern matches the given path.
+     */
     private function matchesRoutes(string $path, array $routes): bool
     {
         foreach ($routes as $pattern) {

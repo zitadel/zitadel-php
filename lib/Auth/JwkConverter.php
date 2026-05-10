@@ -48,7 +48,13 @@ final class JwkConverter
         throw new \InvalidArgumentException("[zitadel] Unsupported JWK key type: {$kty}");
     }
 
-    /** @param array<string, string> $jwk */
+    /**
+     * Converts an RSA JWK (`"kty": "RSA"`) to an OpenSSL public key resource.
+     *
+     * @param array<string, string> $jwk The JWK object; must contain `n` (modulus) and `e` (exponent).
+     * @return \OpenSSLAsymmetricKey The parsed RSA public key.
+     * @throws \InvalidArgumentException If required fields are missing or the key cannot be parsed.
+     */
     private static function rsaToKey(array $jwk): \OpenSSLAsymmetricKey
     {
         if (!isset($jwk['n'], $jwk['e'])) {
@@ -78,7 +84,15 @@ final class JwkConverter
         return $key;
     }
 
-    /** @param array<string, string> $jwk */
+    /**
+     * Converts an EC JWK (`"kty": "EC"`) to an OpenSSL public key resource.
+     *
+     * Supports P-256 (`crv: P-256`) and P-384 (`crv: P-384`) curves.
+     *
+     * @param array<string, string> $jwk The JWK object; must contain `x`, `y` (coordinates), and `crv` (curve name).
+     * @return \OpenSSLAsymmetricKey The parsed EC public key.
+     * @throws \InvalidArgumentException If required fields are missing, the curve is unsupported, or the key cannot be parsed.
+     */
     private static function ecToKey(array $jwk): \OpenSSLAsymmetricKey
     {
         if (!isset($jwk['x'], $jwk['y'], $jwk['crv'])) {
@@ -111,6 +125,13 @@ final class JwkConverter
         return $key;
     }
 
+    /**
+     * Decodes a base64url-encoded string into raw binary.
+     *
+     * @param string $input Base64url-encoded value (no padding required).
+     * @return string Decoded binary string.
+     * @throws \InvalidArgumentException If the input is not valid base64url.
+     */
     private static function base64urlDecode(string $input): string
     {
         $padded = strtr($input, '-_', '+/') . str_repeat('=', (4 - strlen($input) % 4) % 4);
@@ -122,6 +143,15 @@ final class JwkConverter
         return $result;
     }
 
+    /**
+     * Encodes a binary integer value as a DER INTEGER element (tag `0x02`).
+     *
+     * Prepends a zero byte when the high bit is set to ensure the value is
+     * interpreted as a positive integer by ASN.1 decoders.
+     *
+     * @param string $bytes Raw big-endian binary integer value.
+     * @return string DER-encoded INTEGER element.
+     */
     private static function encodeInteger(string $bytes): string
     {
         if (ord($bytes[0]) >= 0x80) {
@@ -131,11 +161,26 @@ final class JwkConverter
         return "\x02" . self::encodeLength(strlen($bytes)) . $bytes;
     }
 
+    /**
+     * Encodes the given content as a DER SEQUENCE element (tag `0x30`).
+     *
+     * @param string $content Pre-encoded DER content to wrap in the SEQUENCE.
+     * @return string DER-encoded SEQUENCE element.
+     */
     private static function encodeSequence(string $content): string
     {
         return "\x30" . self::encodeLength(strlen($content)) . $content;
     }
 
+    /**
+     * Encodes an ASN.1 length value in DER format.
+     *
+     * Uses short-form encoding (single byte) for lengths below 128, and
+     * long-form encoding for larger values.
+     *
+     * @param int $len The length to encode (non-negative).
+     * @return string DER-encoded length bytes.
+     */
     private static function encodeLength(int $len): string
     {
         if ($len < 0x80) {

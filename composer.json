@@ -1,5 +1,5 @@
 {
-    "name": "zitadel/sdk",
+    "name": "zitadel/zitadel-php",
     "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii 3, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
     "keywords": ["auth", "oidc", "pkce", "middleware", "zitadel", "zitadel-sdk"],
     "homepage": "https://github.com/zitadel/zitadel-php",
@@ -24,13 +24,14 @@
         "phpunit/phpunit": "^12.0",
         "friendsofphp/php-cs-fixer": "^3.75",
         "testcontainers/testcontainers": "^1.0",
+        "playwright-php/playwright": "^1.2",
         "vlucas/phpdotenv": "^5.6",
         "rector/rector": "^2.0",
         "phpstan/phpstan": "^2.1",
         "icanhazstring/composer-unused": "^0.9.3",
-        "phpdocumentor/phpdocumentor": "^3.8",
-        "nyholm/psr7": "^1.0",
-        "mridang/phpunit-reporters": "^1.0"
+"nyholm/psr7": "^1.0",
+        "mridang/phpunit-reporters": "^1.0",
+        "symfony/http-client": "^7.4"
     },
     "autoload": {
         "psr-4": {
@@ -51,13 +52,13 @@
         "chat": "https://discord.com/servers/zitadel-927474939156643850"
     },
     "scripts": {
-        "test": "phpunit --testsuite=tests --coverage-html=build/coverage/html --coverage-clover=build/coverage/clover.xml --log-junit=build/reports/junit.xml",
+        "pre-test": "rm -f build/coverage/clover.xml",
+        "test": "phpunit --testsuite=tests",
         "spec": "phpunit --testsuite=specs --log-junit=build/reports/junit-spec.xml",
         "rector": "rector process",
         "phpstan": "phpstan analyse --memory-limit=-1",
         "format": "php-cs-fixer fix",
-        "docgen": "phpdoc --config=phpdoc.xml",
-        "depcheck": "composer-unused"
+"depcheck": "composer-unused"
     },
     "config": {
         "platform": {
@@ -66,7 +67,7 @@
         "allow-plugins": {
             "php-http/discovery": true
         },
-        "process-timeout": 600
+        "process-timeout": 0
     },
     "suggest": {
         "laravel/framework": "^10.0|^11.0 — enables ZitadelServiceProvider auto-discovery",

@@ -6,12 +6,11 @@
     "lefthook@latest"
   ],
   "env": {
-    "XDEBUG_MODE": "coverage"
+    "XDEBUG_MODE": "off"
   },
   "shell": {
     "init_hook": [
-      "lefthook install",
-      "composer install"
+      "lefthook install"
     ],
     "scripts": {
       "format": [
@@ -20,12 +19,15 @@
       "test": [
         "composer test"
       ],
+      "coverage": [
+        "XDEBUG_MODE=coverage phpunit --testsuite=tests --coverage-clover=build/coverage/clover.xml --coverage-html=build/coverage/html"
+      ],
       "check": [
         "composer rector",
         "composer phpstan"
       ],
       "docgen": [
-        "$(pwd)/vendor/bin/phpdoc --config=$(pwd)/phpdoc.xml"
+        "docker run --rm -v \"$(pwd):/data\" phpdoc/phpdoc:3 --config=/data/phpdoc.xml"
       ],
       "depcheck": [
         "composer depcheck"
