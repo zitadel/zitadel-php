@@ -87,7 +87,7 @@ final class JwkConverter
     /**
      * Converts an EC JWK (`"kty": "EC"`) to an OpenSSL public key resource.
      *
-     * Supports P-256 (`crv: P-256`) and P-384 (`crv: P-384`) curves.
+     * Supports P-256 (`crv: P-256`), P-384 (`crv: P-384`), and P-521 (`crv: P-521`) curves.
      *
      * @param array<string, string> $jwk The JWK object; must contain `x`, `y` (coordinates), and `crv` (curve name).
      * @return \OpenSSLAsymmetricKey The parsed EC public key.
