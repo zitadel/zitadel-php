@@ -27,6 +27,22 @@ final class JwkConverter
     ];
 
     /**
+     * Required byte-length for each curve's coordinate components.
+     *
+     * RFC 7517 §6.2.1.2/6.2.1.3: "The length of this octet string MUST be the
+     * full size of a coordinate for the curve specified in the 'crv' parameter."
+     * P-521 coordinates are 66 bytes (ceil(521/8)), but PHP's BN2bin strips
+     * leading zero bytes, so the raw value may arrive as 65 bytes; we pad here.
+     *
+     * @var array<string, int>
+     */
+    private const array CURVE_FIELD_SIZES = [
+        'P-256' => 32,
+        'P-384' => 48,
+        'P-521' => 66,
+    ];
+
+    /**
      * Converts a single JWK array to an OpenSSL public key.
      *
      * @param array<string, string> $jwk Decoded JWK object.
@@ -104,8 +120,9 @@ final class JwkConverter
             throw new \InvalidArgumentException("[zitadel] Unsupported EC curve: {$jwk['crv']}");
         }
 
-        $x = self::base64urlDecode($jwk['x']);
-        $y = self::base64urlDecode($jwk['y']);
+        $fieldSize = self::CURVE_FIELD_SIZES[$jwk['crv']];
+        $x         = str_pad(self::base64urlDecode($jwk['x']), $fieldSize, "\x00", STR_PAD_LEFT);
+        $y         = str_pad(self::base64urlDecode($jwk['y']), $fieldSize, "\x00", STR_PAD_LEFT);
 
         $point     = "\x04" . $x . $y;
         $algOid    = "\x06\x07\x2a\x86\x48\xce\x3d\x02\x01";
