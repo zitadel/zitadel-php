@@ -201,6 +201,246 @@ final class TokenValidatorTest extends TestCase
         self::assertNull($validator->validate($token));
     }
 
+    public function testValidatesEs256TokenSuccessfully(): void
+    {
+        [$token, $mockCache] = $this->buildEcToken('prime256v1', 'P-256', 32, 'ES256', OPENSSL_ALGO_SHA256);
+
+        $config = new ZitadelConfig(
+            issuerUrl:         'https://example.zitadel.cloud',
+            clientId:          'client-id',
+            redirectUri:       'https://myapp.com/callback',
+            cookieSecret:      bin2hex(random_bytes(32)),
+            allowedAlgorithms: [Algorithm::ES256],
+        );
+        self::assertInstanceOf(Claims::class, (new TokenValidator($config, $mockCache))->validate($token));
+    }
+
+    public function testValidatesEs384TokenSuccessfully(): void
+    {
+        [$token, $mockCache] = $this->buildEcToken('secp384r1', 'P-384', 48, 'ES384', OPENSSL_ALGO_SHA384);
+
+        $config = new ZitadelConfig(
+            issuerUrl:         'https://example.zitadel.cloud',
+            clientId:          'client-id',
+            redirectUri:       'https://myapp.com/callback',
+            cookieSecret:      bin2hex(random_bytes(32)),
+            allowedAlgorithms: [Algorithm::ES384],
+        );
+        self::assertInstanceOf(Claims::class, (new TokenValidator($config, $mockCache))->validate($token));
+    }
+
+    /**
+     * ES512 (P-521) signatures have a DER SEQUENCE inner length > 127 bytes,
+     * which exercises the asn1Length() long-form encoding added to p1363ToDer().
+     */
+    public function testValidatesEs512TokenSuccessfully(): void
+    {
+        [$token, $mockCache] = $this->buildEcToken('secp521r1', 'P-521', 66, 'ES512', OPENSSL_ALGO_SHA512);
+
+        $config = new ZitadelConfig(
+            issuerUrl:         'https://example.zitadel.cloud',
+            clientId:          'client-id',
+            redirectUri:       'https://myapp.com/callback',
+            cookieSecret:      bin2hex(random_bytes(32)),
+            allowedAlgorithms: [Algorithm::ES512],
+        );
+        self::assertInstanceOf(Claims::class, (new TokenValidator($config, $mockCache))->validate($token));
+    }
+
+    public function testRejectsTokenWithFutureNbf(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 7200,
+            'iat' => time(),
+            'nbf' => time() + 3600,
+        ]);
+
+        self::assertNull((new TokenValidator($this->config, $mockCache))->validate($token));
+    }
+
+    public function testAcceptsTokenWithPastNbf(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time() - 60,
+            'nbf' => time() - 60,
+        ]);
+
+        self::assertInstanceOf(Claims::class, (new TokenValidator($this->config, $mockCache))->validate($token));
+    }
+
+    public function testRejectsTokenWithFutureIat(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 7200,
+            'iat' => time() + 3600,
+        ]);
+
+        self::assertNull((new TokenValidator($this->config, $mockCache))->validate($token));
+    }
+
+    public function testRejectsTokenWithAudienceMismatch(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+            'aud' => 'other-app',
+        ]);
+
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client-id',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            audience:     'my-app',
+        );
+        self::assertNull((new TokenValidator($config, $mockCache))->validate($token));
+    }
+
+    public function testAcceptsTokenWithMatchingAudience(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+            'aud' => 'my-app',
+        ]);
+
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client-id',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            audience:     'my-app',
+        );
+        self::assertInstanceOf(Claims::class, (new TokenValidator($config, $mockCache))->validate($token));
+    }
+
+    /**
+     * @param array<string, mixed> $claims
+     * @return array{0: string, 1: \Zitadel\Sdk\Auth\JwksCacheInterface}
+     */
+    private function buildRs256Token(array $claims): array
+    {
+        $privateKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($privateKey);
+
+        $details = openssl_pkey_get_details($privateKey);
+        self::assertNotFalse($details);
+
+        $n   = rtrim(strtr(base64_encode($details['rsa']['n']), '+/', '-_'), '=');
+        $e   = rtrim(strtr(base64_encode($details['rsa']['e']), '+/', '-_'), '=');
+        $kid = 'rsa-test-key';
+
+        $header       = rtrim(strtr(base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT', 'kid' => $kid])), '+/', '-_'), '=');
+        $payloadB64   = rtrim(strtr(base64_encode(json_encode($claims)), '+/', '-_'), '=');
+        $signingInput = "{$header}.{$payloadB64}";
+
+        openssl_sign($signingInput, $signature, $privateKey, OPENSSL_ALGO_SHA256);
+        $sigEncoded = rtrim(strtr(base64_encode($signature), '+/', '-_'), '=');
+        $token      = "{$signingInput}.{$sigEncoded}";
+
+        $jwks      = ['keys' => [['kty' => 'RSA', 'kid' => $kid, 'use' => 'sig', 'alg' => 'RS256', 'n' => $n, 'e' => $e]]];
+        $mockCache = $this->buildMockCache($jwks, 'https://example.zitadel.cloud/oauth/v2/keys', $kid);
+
+        return [$token, $mockCache];
+    }
+
+    /**
+     * Builds a signed EC JWT. openssl_sign() produces a DER signature; JWT/Zitadel
+     * uses IEEE P1363 (r||s), so the signature is converted before embedding.
+     *
+     * @return array{0: string, 1: \Zitadel\Sdk\Auth\JwksCacheInterface}
+     */
+    private function buildEcToken(
+        string $curveName,
+        string $crv,
+        int $curveBytes,
+        string $alg,
+        int $opensslAlgo,
+    ): array {
+        $privateKey = openssl_pkey_new(['curve_name' => $curveName, 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        self::assertNotFalse($privateKey);
+
+        $details = openssl_pkey_get_details($privateKey);
+        self::assertNotFalse($details);
+
+        // Pad to the full field width — PHP's BN2bin may strip leading zeros
+        // (critical for P-521 where the MSByte is 0x00 ~50% of the time).
+        $x   = rtrim(strtr(base64_encode(str_pad($details['ec']['x'], $curveBytes, "\x00", STR_PAD_LEFT)), '+/', '-_'), '=');
+        $y   = rtrim(strtr(base64_encode(str_pad($details['ec']['y'], $curveBytes, "\x00", STR_PAD_LEFT)), '+/', '-_'), '=');
+        $kid = "ec-key-{$crv}";
+        $now = time();
+
+        $header       = rtrim(strtr(base64_encode(json_encode(['alg' => $alg, 'typ' => 'JWT', 'kid' => $kid])), '+/', '-_'), '=');
+        $payloadB64   = rtrim(strtr(base64_encode(json_encode([
+            'sub' => 'user-ec',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => $now + 3600,
+            'iat' => $now,
+        ])), '+/', '-_'), '=');
+        $signingInput = "{$header}.{$payloadB64}";
+
+        openssl_sign($signingInput, $derSig, $privateKey, $opensslAlgo);
+
+        $p1363Sig   = self::derToP1363($derSig, $curveBytes);
+        $sigEncoded = rtrim(strtr(base64_encode($p1363Sig), '+/', '-_'), '=');
+        $token      = "{$signingInput}.{$sigEncoded}";
+
+        $jwks      = ['keys' => [['kty' => 'EC', 'kid' => $kid, 'use' => 'sig', 'alg' => $alg, 'crv' => $crv, 'x' => $x, 'y' => $y]]];
+        $mockCache = $this->buildMockCache($jwks, 'https://example.zitadel.cloud/oauth/v2/keys', $kid);
+
+        return [$token, $mockCache];
+    }
+
+    /**
+     * Converts a DER-encoded EC signature to IEEE P1363 format (r||s).
+     *
+     * This is the inverse of TokenValidator::p1363ToDer() and is required here
+     * because openssl_sign() outputs DER, but JWT signatures must be P1363.
+     */
+    private static function derToP1363(string $der, int $curveBytes): string
+    {
+        $pos = 1; // skip \x30 SEQUENCE tag
+
+        // Skip sequence length (short or long form)
+        $seqLen = ord($der[$pos++]);
+        if ($seqLen & 0x80) {
+            $pos += $seqLen & 0x7f;
+        }
+
+        // Read r INTEGER
+        $pos++;
+        $rLen = ord($der[$pos++]);
+        $r    = substr($der, $pos, $rLen);
+        $pos += $rLen;
+
+        // Read s INTEGER
+        $pos++;
+        $sLen = ord($der[$pos++]);
+        $s    = substr($der, $pos, $sLen);
+
+        // Strip the leading \x00 that DER adds to keep the integer positive
+        if (strlen($r) > $curveBytes && $r[0] === "\x00") {
+            $r = substr($r, 1);
+        }
+        if (strlen($s) > $curveBytes && $s[0] === "\x00") {
+            $s = substr($s, 1);
+        }
+
+        return str_pad($r, $curveBytes, "\x00", STR_PAD_LEFT)
+            . str_pad($s, $curveBytes, "\x00", STR_PAD_LEFT);
+    }
+
     /**
      * @param array<string, mixed> $jwks
      */
