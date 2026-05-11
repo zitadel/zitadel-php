@@ -32,6 +32,19 @@ php artisan vendor:publish --tag=zitadel-config
 Zitadel\Sdk\Bridge\Symfony\ZitadelBundle::class => ['all' => true],
 ```
 
+### Yii 3
+
+Register the bridge middleware and its router bindings in `config/web/di.php`:
+
+```php
+use Zitadel\Sdk\Bridge\Yii\ZitadelMiddleware;
+use Yiisoft\Router\FastRoute\UrlMatcher;
+use Yiisoft\Router\UrlMatcherInterface;
+// ... see docs/yii.rst for the full DI config
+```
+
+Place `ZitadelMiddleware::class` before `Router::class` in your middleware pipeline.
+
 ### Slim 4 / Mezzio (PSR-15 native)
 
 ```php

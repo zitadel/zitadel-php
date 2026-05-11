@@ -205,11 +205,6 @@ reflects on both for the attribute:
        }
    }
 
-.. note::
-
-   The filter uses ``service('router')->getController()`` (not ``controllerName()``)
-   because ``getController()`` returns the fully-qualified class name required for
-   ``new \ReflectionClass(...)`` to work correctly.
 
 
 Forwarding Tokens
