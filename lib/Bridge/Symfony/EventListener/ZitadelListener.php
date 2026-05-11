@@ -246,7 +246,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
         }
 
         $state = $request->query->get('state');
-        if ($state !== $pkce['state']) {
+        if (!hash_equals($pkce['state'], (string) $state)) {
             return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
         }
 
@@ -262,12 +262,12 @@ readonly class ZitadelListener implements EventSubscriberInterface
             return $this->badRequest('Authentication failed — token exchange error: ' . $e->getMessage());
         }
 
-        $accessToken = $tokens['access_token'] ?? null;
-        if (!is_string($accessToken)) {
-            return $this->badRequest('Authentication failed — no access token in response.');
+        $tokenToValidate = PkceFlow::selectToken($tokens);
+        if ($tokenToValidate === null) {
+            return $this->badRequest('Authentication failed — no usable token in response.');
         }
 
-        $claims = $this->validator->validate($accessToken);
+        $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
         }
@@ -279,7 +279,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
         $response = new RedirectResponse($next);
         $response->headers->setCookie(new Cookie(
             '__nextgen_auth',
-            $accessToken,
+            $tokenToValidate,
             time() + $maxAge,
             '/',
             null,
@@ -311,7 +311,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
      */
     private function handleLogout(\Symfony\Component\HttpFoundation\Request $request): Response
     {
-        $params   = http_build_query(['post_logout_redirect_uri' => $this->config->postLogoutRedirect]);
+        $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);
         $response = new RedirectResponse($this->config->endSessionEndpoint() . '?' . $params);
         $response->headers->setCookie(new Cookie(
             '__nextgen_auth',

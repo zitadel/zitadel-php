@@ -56,7 +56,7 @@ readonly class CallbackController
         }
 
         $state = $request->query('state');
-        if ($state !== $pkce['state']) {
+        if (!hash_equals($pkce['state'], (string) $state)) {
             return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
         }
 
@@ -72,12 +72,12 @@ readonly class CallbackController
             return $this->badRequest('Authentication failed — token exchange error: ' . $e->getMessage());
         }
 
-        $accessToken = $tokens['access_token'] ?? null;
-        if (!is_string($accessToken)) {
-            return $this->badRequest('Authentication failed — no access token in response.');
+        $tokenToValidate = PkceFlow::selectToken($tokens);
+        if ($tokenToValidate === null) {
+            return $this->badRequest('Authentication failed — no usable token in response.');
         }
 
-        $claims = $this->validator->validate($accessToken);
+        $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
         }
@@ -89,7 +89,7 @@ readonly class CallbackController
         $response = redirect($next);
         $response->cookie(
             '__nextgen_auth',
-            $accessToken,
+            $tokenToValidate,
             $maxAge / 60,
             '/',
             null,

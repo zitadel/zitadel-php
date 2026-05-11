@@ -191,9 +191,19 @@ readonly class ZitadelPlugin
         );
 
         $response = new Response();
-        $response->redirect($authUrl, true);
+        $response->setStatusCode(302, 'Found');
+        $response->setHeader('Location', $authUrl);
+        $response->setContent('');
         $response->setRawHeader($this->buildCookieHeader('__nextgen_pkce', $cookie, time() + 600, $request->isSecure()));
         $di->set('response', $response);
+
+        // Pre-populate the view content with '' so that Application::handle()
+        // calling view->getContent() after finish() gets '' instead of null,
+        // preventing the PHP 8.x null-to-string deprecation on Response::setContent().
+        if ($di->has('view')) {
+            $di->getShared('view')->setContent('');
+        }
+
         $response->send();
 
         // Stop dispatch
@@ -224,7 +234,7 @@ readonly class ZitadelPlugin
         }
 
         $state = $request->getQuery('state');
-        if ($state !== $pkce['state']) {
+        if (!hash_equals($pkce['state'], (string) $state)) {
             return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
         }
 
@@ -240,12 +250,12 @@ readonly class ZitadelPlugin
             return $this->badRequest('Authentication failed — token exchange error: ' . $e->getMessage());
         }
 
-        $accessToken = $tokens['access_token'] ?? null;
-        if (!is_string($accessToken)) {
-            return $this->badRequest('Authentication failed — no access token in response.');
+        $tokenToValidate = PkceFlow::selectToken($tokens);
+        if ($tokenToValidate === null) {
+            return $this->badRequest('Authentication failed — no usable token in response.');
         }
 
-        $claims = $this->validator->validate($accessToken);
+        $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
         }
@@ -258,11 +268,13 @@ readonly class ZitadelPlugin
         // Phalcon's Headers::send() calls header() with replace=true (the default), which
         // means the second Set-Cookie would silently overwrite the first, losing the auth
         // cookie before it ever reaches the browser.
-        header($this->buildCookieHeader('__nextgen_auth', $accessToken, time() + $maxAge, $secure), false);
+        header($this->buildCookieHeader('__nextgen_auth', $tokenToValidate, time() + $maxAge, $secure), false);
         header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
 
         $response = new Response();
-        $response->redirect($next, true);
+        $response->setStatusCode(302, 'Found');
+        $response->setHeader('Location', $next);
+        $response->setContent('');
 
         return $response;
     }
@@ -277,9 +289,12 @@ readonly class ZitadelPlugin
     {
         header($this->buildCookieHeader('__nextgen_auth', '', 1, $request->isSecure()), false);
 
-        $params   = http_build_query(['post_logout_redirect_uri' => $this->config->postLogoutRedirect]);
+        $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);
+        $location = $this->config->endSessionEndpoint() . '?' . $params;
         $response = new Response();
-        $response->redirect($this->config->endSessionEndpoint() . '?' . $params, true);
+        $response->setStatusCode(302, 'Found');
+        $response->setHeader('Location', $location);
+        $response->setContent('');
 
         return $response;
     }

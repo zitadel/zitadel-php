@@ -229,19 +229,19 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
             return $this->badRequest('Authentication failed — token exchange error: ' . $e->getMessage());
         }
 
-        $accessToken = $tokens['access_token'] ?? null;
-        if (!is_string($accessToken)) {
-            return $this->badRequest('Authentication failed — no access token in response.');
+        $tokenToValidate = PkceFlow::selectToken($tokens);
+        if ($tokenToValidate === null) {
+            return $this->badRequest('Authentication failed — no usable token in response.');
         }
 
-        $claims = $this->validator->validate($accessToken);
+        $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
         }
 
         $maxAge  = max(0, $claims->exp - time());
         $secure  = $isSecure ? '; Secure' : '';
-        $cookie  = "__nextgen_auth={$accessToken}; Max-Age={$maxAge}; Path=/; HttpOnly; SameSite=Lax{$secure}";
+        $cookie  = "__nextgen_auth={$tokenToValidate}; Max-Age={$maxAge}; Path=/; HttpOnly; SameSite=Lax{$secure}";
 
         $next = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
 
@@ -259,7 +259,8 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
     private function handleLogout(ServerRequestInterface $request): ResponseInterface
     {
         $params = http_build_query([
-            'post_logout_redirect_uri' => $this->config->postLogoutRedirect,
+            'client_id'                => $this->config->clientId,
+            'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri(),
         ]);
 
         $response = $this->responseFactory->createResponse(302)

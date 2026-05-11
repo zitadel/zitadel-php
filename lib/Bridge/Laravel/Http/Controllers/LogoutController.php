@@ -39,7 +39,8 @@ readonly class LogoutController
     public function __invoke(Request $request): RedirectResponse
     {
         $params = http_build_query([
-            'post_logout_redirect_uri' => $this->config->postLogoutRedirect,
+            'client_id'                => $this->config->clientId,
+            'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri(),
         ]);
 
         $response = redirect($this->config->endSessionEndpoint() . '?' . $params);

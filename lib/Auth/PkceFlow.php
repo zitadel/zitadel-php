@@ -151,4 +151,35 @@ final class PkceFlow
 
         return $data;
     }
+
+    /**
+     * Selects the token to validate from a token exchange response.
+     *
+     * ZITADEL (and some other providers) issue the access token as a JWE
+     * (encrypted, 5 segments) which cannot be validated locally. In that case
+     * — or when the access token is absent — this method returns the id_token,
+     * which is always a signed JWS in OIDC and carries the user identity claims.
+     *
+     * Selection order:
+     *  1. `access_token` — if present and exactly 3 segments (a JWS).
+     *  2. `id_token`     — fallback for JWE/opaque access tokens.
+     *  3. `null`         — neither token is usable.
+     *
+     * @param array<string, mixed> $tokens Token exchange response from {@see exchangeCode()}.
+     * @return string|null The raw JWT string to pass to {@see TokenValidator::validate()}.
+     */
+    public static function selectToken(array $tokens): ?string
+    {
+        $accessToken = $tokens['access_token'] ?? null;
+
+        // Prefer access_token when it is a plain signed JWS (3 segments).
+        if (is_string($accessToken) && substr_count($accessToken, '.') === 2) {
+            return $accessToken;
+        }
+
+        // Fall back to id_token (always a signed JWS in OIDC).
+        $idToken = $tokens['id_token'] ?? null;
+
+        return is_string($idToken) ? $idToken : null;
+    }
 }

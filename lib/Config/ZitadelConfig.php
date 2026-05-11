@@ -204,4 +204,34 @@ readonly class ZitadelConfig
     {
         return rtrim($this->issuerUrl, '/') . $this->endSessionPath;
     }
+
+    /**
+     * Builds the absolute post-logout redirect URI.
+     *
+     * The `postLogoutRedirect` config value is a relative path (e.g. `/` or
+     * `/goodbye`). ZITADEL and other OIDC providers require an absolute URI in
+     * the `post_logout_redirect_uri` parameter, and perform exact-match checks
+     * against the registered URIs.
+     *
+     * The base origin is inferred from `redirectUri` (which is already absolute)
+     * so no framework-specific request object is needed.
+     *
+     * Examples:
+     *  - redirectUri=http://localhost:3000/zitadel/callback, postLogoutRedirect=/
+     *    → http://localhost:3000
+     *  - redirectUri=https://myapp.com/zitadel/callback, postLogoutRedirect=/bye
+     *    → https://myapp.com/bye
+     */
+    public function postLogoutAbsoluteUri(): string
+    {
+        $parsed = parse_url($this->redirectUri);
+        $origin = ($parsed['scheme'] ?? 'https') . '://' . ($parsed['host'] ?? '');
+        if (isset($parsed['port'])) {
+            $origin .= ':' . $parsed['port'];
+        }
+
+        $path = $this->postLogoutRedirect;
+
+        return $origin . ($path === '/' ? '' : $path);
+    }
 }

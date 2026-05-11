@@ -183,7 +183,7 @@ final readonly class ZitadelFilter implements FilterInterface
         }
 
         $state = $request->getGet('state');
-        if ($state !== $pkce['state']) {
+        if (!hash_equals($pkce['state'], (string) $state)) {
             return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
         }
 
@@ -199,12 +199,12 @@ final readonly class ZitadelFilter implements FilterInterface
             return $this->badRequest('Authentication failed — token exchange error: ' . $e->getMessage());
         }
 
-        $accessToken = $tokens['access_token'] ?? null;
-        if (!is_string($accessToken)) {
-            return $this->badRequest('Authentication failed — no access token in response.');
+        $tokenToValidate = PkceFlow::selectToken($tokens);
+        if ($tokenToValidate === null) {
+            return $this->badRequest('Authentication failed — no usable token in response.');
         }
 
-        $claims = $this->validator->validate($accessToken);
+        $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
         }
@@ -214,7 +214,7 @@ final readonly class ZitadelFilter implements FilterInterface
         $secure = $request->isSecure();
 
         $response = response()->redirect($next);
-        $response->setCookie('__nextgen_auth', $accessToken, $maxAge, '', '/', '', $secure, true, 'Lax');
+        $response->setCookie('__nextgen_auth', $tokenToValidate, $maxAge, '', '/', '', $secure, true, 'Lax');
         $response->deleteCookie('__nextgen_pkce', '', '/');
 
         return $response;
@@ -228,7 +228,7 @@ final readonly class ZitadelFilter implements FilterInterface
      */
     private function handleLogout(IncomingRequest $request): ResponseInterface
     {
-        $params   = http_build_query(['post_logout_redirect_uri' => $this->config->postLogoutRedirect]);
+        $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);
         $response = response()->redirect($this->config->endSessionEndpoint() . '?' . $params);
         $response->deleteCookie('__nextgen_auth', '', '/');
 
