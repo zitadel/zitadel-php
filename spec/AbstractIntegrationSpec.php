@@ -227,9 +227,11 @@ abstract class AbstractIntegrationSpec extends TestCase
         // Step 3: Callback exchanges code and sets cookie; browser follows redirect to /dashboard
         $page->waitForURL($this->baseUrl() . '/dashboard');
 
-        // Step 4: Authenticated page must contain the greeting and email claim
-        self::assertStringContainsString('Hello', $page->locator('body')->innerText());
-        self::assertStringContainsString('alice@example.com', $page->locator('body')->innerText());
+        // Step 4: Authenticated page must contain the greeting, email, and sub claims
+        $body = $page->locator('body')->innerText();
+        self::assertStringContainsString('Hello Alice Test', $body);
+        self::assertStringContainsString('alice@example.com', $body);
+        self::assertStringContainsString('sub:', $body);
     }
 
     public function testLogoutClearsCookieAndRedirects(): void
@@ -260,7 +262,31 @@ abstract class AbstractIntegrationSpec extends TestCase
         $response = $page->goto($this->baseUrl() . '/home');
         self::assertNotNull($response);
         self::assertSame(200, $response->status());
+        // Final URL must still be /home — Playwright follows redirects, so if the middleware
+        // incorrectly redirected to /authorize the URL would have changed.
+        self::assertSame($this->baseUrl() . '/home', $page->url());
         self::assertStringContainsString('Welcome home', $page->locator('body')->innerText());
+    }
+
+    public function testApiWithoutTokenReturnsUnauthenticated(): void
+    {
+        $ch = curl_init($this->baseUrl() . '/api');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_TIMEOUT         => 5,
+            CURLOPT_FOLLOWLOCATION  => false,
+        ]);
+        $apiBody  = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        self::assertNotFalse($apiBody, '/api endpoint must be reachable without a token');
+        self::assertSame(200, $httpCode, '/api must return 200 for anonymous access, not a redirect');
+
+        $apiResponse = json_decode((string) $apiBody, true);
+        self::assertIsArray($apiResponse);
+        self::assertFalse(
+            $apiResponse['authenticated'],
+            '/api without a token must return authenticated=false'
+        );
     }
 
     public function testApiBearerTokenAccess(): void
@@ -295,6 +321,13 @@ abstract class AbstractIntegrationSpec extends TestCase
         ]);
         $apiBody = curl_exec($ch2);
         self::assertNotFalse($apiBody, '/api endpoint must be reachable');
+
+        $contentType = (string) curl_getinfo($ch2, CURLINFO_CONTENT_TYPE);
+        self::assertStringContainsString(
+            'application/json',
+            $contentType,
+            '/api must respond with Content-Type: application/json'
+        );
 
         $apiResponse = json_decode((string) $apiBody, true);
         self::assertIsArray($apiResponse);
