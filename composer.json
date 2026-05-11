@@ -1,6 +1,6 @@
 {
     "name": "zitadel/zitadel-php",
-    "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii 3, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
+    "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
     "keywords": ["auth", "oidc", "pkce", "middleware", "zitadel", "zitadel-sdk"],
     "homepage": "https://github.com/zitadel/zitadel-php",
     "license": "Apache-2.0",
@@ -70,11 +70,11 @@
         "process-timeout": 0
     },
     "suggest": {
-        "laravel/framework": "^10.0|^11.0 — enables ZitadelServiceProvider auto-discovery",
-        "symfony/http-kernel": "^6.4|^7.0 — enables ZitadelBundle",
-        "yiisoft/yii-web": "^3.0 — enables Yii 3 PSR-15 bootstrap",
+        "laravel/framework": "^11.0|^12.0|^13.0 — enables ZitadelServiceProvider auto-discovery",
+        "symfony/http-kernel": "^7.0|^8.0 — enables ZitadelBundle",
+        "yiisoft/router": "^3.0|^4.0 — enables Yii bridge with AllowAnonymous support",
         "codeigniter4/framework": "^4.0 — enables ZitadelFilter",
-        "phalcon/phalcon": "^5.0 — enables Phalcon MVC/Micro plugins"
+        "phalcon/phalcon": "v6.0.x-dev — enables Phalcon MVC/Micro plugins"
     },
     "extra": {
         "laravel": {

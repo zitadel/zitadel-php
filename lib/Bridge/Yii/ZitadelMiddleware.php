@@ -166,22 +166,30 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
     /**
      * Returns the middleware definitions registered on a route.
      *
-     * `Route::$middlewareDefinitions` is private with no public accessor in
-     * `yiisoft/router` 3.x. We read it via reflection rather than relying on
-     * internal `getData()` keys whose availability varies across minor versions.
+     * The private property holding middleware definitions was renamed between
+     * major versions of `yiisoft/router`:
+     *  - v3.x: `$middlewareDefinitions`
+     *  - v4.x: `$middlewares`
+     *
+     * Both names are tried in preference order (v4 first) so the bridge works
+     * with either installed version without requiring a hard dependency on one.
      *
      * @param Route $route The matched route.
      * @return array<array|callable|string> The middleware definitions (action is last).
      */
     private function routeMiddlewareDefinitions(Route $route): array
     {
-        try {
-            $prop = new \ReflectionProperty($route, 'middlewareDefinitions');
+        foreach (['middlewares', 'middlewareDefinitions'] as $propName) {
+            try {
+                $prop = new \ReflectionProperty($route, $propName);
 
-            return (array) $prop->getValue($route);
-        } catch (\ReflectionException) {
-            return [];
+                return (array) $prop->getValue($route);
+            } catch (\ReflectionException) {
+                // try next property name
+            }
         }
+
+        return [];
     }
 
     /**

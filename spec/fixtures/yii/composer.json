@@ -9,8 +9,8 @@
         "nyholm/psr7": "^1.0",
         "nyholm/psr7-server": "^1.0",
         "vlucas/phpdotenv": "^5.6",
-        "yiisoft/router": "^3.0",
-        "yiisoft/router-fastroute": "^3.0",
+        "yiisoft/router": "^4.0",
+        "yiisoft/router-fastroute": "^4.0",
         "zitadel/zitadel-php": "*@dev"
     },
     "repositories": [

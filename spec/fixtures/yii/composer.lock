@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e0c4e5466319f222faf4f2c2a8d26817",
+    "content-hash": "925af38b6b4fcebb746f208cb017deef",
     "packages": [
         {
             "name": "graham-campbell/result-type",
@@ -1502,23 +1502,23 @@
         },
         {
             "name": "yiisoft/router",
-            "version": "3.1.0",
+            "version": "4.0.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/yiisoft/router.git",
-                "reference": "86ee95984109bd96548cad3f93df8ad9ca4de0b8"
+                "reference": "dff8d252e87eb99e415fbc59439546d3ea432fa9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/yiisoft/router/zipball/86ee95984109bd96548cad3f93df8ad9ca4de0b8",
-                "reference": "86ee95984109bd96548cad3f93df8ad9ca4de0b8",
+                "url": "https://api.github.com/repos/yiisoft/router/zipball/dff8d252e87eb99e415fbc59439546d3ea432fa9",
+                "reference": "dff8d252e87eb99e415fbc59439546d3ea432fa9",
                 "shasum": ""
             },
             "require": {
-                "php": "^8.0",
+                "php": "8.1 - 8.5",
                 "psr/event-dispatcher": "^1.0",
                 "psr/http-factory": "^1.0",
-                "psr/http-message": "^1.0|^2.0",
+                "psr/http-message": "^1.0 || ^2.0",
                 "psr/http-server-handler": "^1.0",
                 "psr/http-server-middleware": "^1.0",
                 "yiisoft/http": "^1.2",
@@ -1526,18 +1526,19 @@
                 "yiisoft/router-implementation": "1.0.0"
             },
             "require-dev": {
-                "maglnet/composer-require-checker": "^4.4",
-                "nyholm/psr7": "^1.5",
-                "phpunit/phpunit": "^9.5",
-                "psr/container": "^1.1|^2.0",
-                "rector/rector": "^1.0",
-                "roave/infection-static-analysis-plugin": "^1.18",
-                "spatie/phpunit-watcher": "^1.23",
-                "vimeo/psalm": "^4.30|^5.22",
-                "yiisoft/di": "^1.0",
-                "yiisoft/dummy-provider": "^1.0.0",
-                "yiisoft/hydrator": "^1.0",
-                "yiisoft/test-support": "^3.0"
+                "maglnet/composer-require-checker": "^4.7.1",
+                "nyholm/psr7": "^1.8.2",
+                "phpunit/phpunit": "^10.5.45",
+                "psr/container": "^1.1 || ^2.0.2",
+                "rector/rector": "^2.0.9",
+                "roave/infection-static-analysis-plugin": "^1.35",
+                "spatie/phpunit-watcher": "^1.24",
+                "vimeo/psalm": "^5.26.1 || ^6.8.6",
+                "yiisoft/di": "^1.3",
+                "yiisoft/dummy-provider": "^1.0.1",
+                "yiisoft/hydrator": "^1.5",
+                "yiisoft/test-support": "^3.0.1",
+                "yiisoft/yii-debug": "dev-master"
             },
             "suggest": {
                 "yiisoft/hydrator": "Needed to use `RouteArgument` attribute",
@@ -1546,7 +1547,8 @@
             "type": "library",
             "extra": {
                 "config-plugin": {
-                    "di": "di.php"
+                    "di": "di.php",
+                    "params": "params.php"
                 },
                 "config-plugin-options": {
                     "source-directory": "config"
@@ -1571,59 +1573,59 @@
             "support": {
                 "chat": "https://t.me/yii3en",
                 "forum": "https://www.yiiframework.com/forum/",
-                "irc": "irc://irc.freenode.net/yii",
+                "irc": "ircs://irc.libera.chat:6697/yii",
                 "issues": "https://github.com/yiisoft/router/issues?state=open",
                 "source": "https://github.com/yiisoft/router",
                 "wiki": "https://www.yiiframework.com/wiki/"
             },
             "funding": [
                 {
-                    "url": "https://github.com/yiisoft",
+                    "url": "https://github.com/sponsors/yiisoft",
                     "type": "github"
                 },
                 {
                     "url": "https://opencollective.com/yiisoft",
-                    "type": "open_collective"
+                    "type": "opencollective"
                 }
             ],
-            "time": "2024-02-20T11:39:48+00:00"
+            "time": "2025-12-13T10:19:16+00:00"
         },
         {
             "name": "yiisoft/router-fastroute",
-            "version": "3.1.0",
+            "version": "4.0.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/yiisoft/router-fastroute.git",
-                "reference": "4f2214eed24e140687e714ccb08a6420da316059"
+                "reference": "13f97b5c7934aacaece3318ab947a12fcbe532f3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/yiisoft/router-fastroute/zipball/4f2214eed24e140687e714ccb08a6420da316059",
-                "reference": "4f2214eed24e140687e714ccb08a6420da316059",
+                "url": "https://api.github.com/repos/yiisoft/router-fastroute/zipball/13f97b5c7934aacaece3318ab947a12fcbe532f3",
+                "reference": "13f97b5c7934aacaece3318ab947a12fcbe532f3",
                 "shasum": ""
             },
             "require": {
                 "nikic/fast-route": "^1.3",
-                "php": "^8.0",
-                "psr/http-message": "^1.0|^2.0",
-                "psr/simple-cache": "^2.0|^3.0",
+                "php": "8.1 - 8.5",
+                "psr/http-message": "^1.0 || ^2.0",
+                "psr/simple-cache": "^2.0 || ^3.0",
                 "yiisoft/http": "^1.2",
-                "yiisoft/router": "^2.1|^3.0"
+                "yiisoft/router": "^4"
             },
             "provide": {
                 "yiisoft/router-implementation": "1.0.0"
             },
             "require-dev": {
-                "maglnet/composer-require-checker": "^4.2",
-                "nyholm/psr7": "^1.4",
-                "phpunit/phpunit": "^9.5",
-                "psr/container": "^2.0",
-                "rector/rector": "^1.0",
-                "roave/infection-static-analysis-plugin": "^1.16",
-                "spatie/phpunit-watcher": "^1.23",
-                "vimeo/psalm": "^4.30|^5.21",
-                "yiisoft/di": "^1.2",
-                "yiisoft/test-support": "^3.0"
+                "maglnet/composer-require-checker": "^4.7.1",
+                "nyholm/psr7": "^1.8.2",
+                "phpunit/phpunit": "^10.5.55",
+                "psr/container": "^2.0.2",
+                "rector/rector": "^2.1.7",
+                "roave/infection-static-analysis-plugin": "^1.35",
+                "spatie/phpunit-watcher": "^1.24",
+                "vimeo/psalm": "^5.26.1 || ^6.8.6",
+                "yiisoft/di": "^1.4",
+                "yiisoft/test-support": "^3.0.2"
             },
             "type": "library",
             "extra": {
@@ -1654,22 +1656,22 @@
             "support": {
                 "chat": "https://t.me/yii3en",
                 "forum": "https://www.yiiframework.com/forum/",
-                "irc": "irc://irc.freenode.net/yii",
+                "irc": "ircs://irc.libera.chat:6697/yii",
                 "issues": "https://github.com/yiisoft/router-fastroute/issues?state=open",
                 "source": "https://github.com/yiisoft/router-fastroute",
                 "wiki": "https://www.yiiframework.com/wiki/"
             },
             "funding": [
                 {
-                    "url": "https://github.com/yiisoft",
+                    "url": "https://github.com/sponsors/yiisoft",
                     "type": "github"
                 },
                 {
                     "url": "https://opencollective.com/yiisoft",
-                    "type": "open_collective"
+                    "type": "opencollective"
                 }
             ],
-            "time": "2024-03-19T12:26:45+00:00"
+            "time": "2025-12-13T11:58:56+00:00"
         },
         {
             "name": "zitadel/zitadel-php",
@@ -1677,7 +1679,7 @@
             "dist": {
                 "type": "path",
                 "url": "../../..",
-                "reference": "44b28d9b030c440e74bd1742024a4b20186bebbe"
+                "reference": "66cd227c06e74fefa5490d235d4d1b1a7f8dfd75"
             },
             "require": {
                 "ext-curl": "*",
@@ -1704,10 +1706,10 @@
             },
             "suggest": {
                 "codeigniter4/framework": "^4.0 — enables ZitadelFilter",
-                "laravel/framework": "^10.0|^11.0 — enables ZitadelServiceProvider auto-discovery",
-                "phalcon/phalcon": "^5.0 — enables Phalcon MVC/Micro plugins",
-                "symfony/http-kernel": "^6.4|^7.0 — enables ZitadelBundle",
-                "yiisoft/yii-web": "^3.0 — enables Yii 3 PSR-15 bootstrap"
+                "laravel/framework": "^11.0|^12.0|^13.0 — enables ZitadelServiceProvider auto-discovery",
+                "phalcon/phalcon": "v6.0.x-dev — enables Phalcon MVC/Micro plugins",
+                "symfony/http-kernel": "^7.0|^8.0 — enables ZitadelBundle",
+                "yiisoft/router": "^3.0|^4.0 — enables Yii bridge with AllowAnonymous support"
             },
             "type": "library",
             "extra": {
@@ -1760,7 +1762,7 @@
                     "homepage": "https://zitadel.com"
                 }
             ],
-            "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii 3, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
+            "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
             "homepage": "https://github.com/zitadel/zitadel-php",
             "keywords": [
                 "auth",
