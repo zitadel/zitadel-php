@@ -17,6 +17,8 @@ class ApiController extends Controller
             ? ['authenticated' => true, 'sub' => $claims->sub, 'name' => $claims->name, 'email' => $claims->email]
             : ['authenticated' => false];
 
+        $this->response->setContentType('application/json');
+
         return (string) json_encode($payload);
     }
 }

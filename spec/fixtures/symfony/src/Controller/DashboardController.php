@@ -19,6 +19,7 @@ final class DashboardController
     }
 
     #[Route('/health')]
+    #[AllowAnonymous]
     public function health(): Response
     {
         return new Response('OK');

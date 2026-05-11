@@ -8,9 +8,9 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Zitadel\Sdk\Attribute\AllowAnonymous;
 
+#[AllowAnonymous]
 final class HealthAction
 {
-    #[AllowAnonymous]
     public function __invoke(
         ServerRequestInterface $request,
         ResponseInterface      $response,
