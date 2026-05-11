@@ -9,8 +9,8 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Yiisoft\Di\Container;
 use Yiisoft\Di\ContainerConfig;
-use Zitadel\Sdk\Auth\Claims;
-use Zitadel\Sdk\Middleware\ZitadelMiddleware;
+use Yiisoft\Router\UrlMatcherInterface;
+use Zitadel\Sdk\Bridge\Yii\ZitadelMiddleware;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -24,53 +24,42 @@ $psr17   = new Psr17Factory();
 $creator = new ServerRequestCreator($psr17, $psr17, $psr17, $psr17);
 $request = $creator->fromGlobals();
 
-$path = '/' . ltrim((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/');
+/** @var UrlMatcherInterface $urlMatcher */
+$urlMatcher = $container->get(UrlMatcherInterface::class);
 
-$appHandler = new class ($path, $psr17) implements RequestHandlerInterface {
+// Terminal handler: resolves the matched route and dispatches to its action class.
+//
+// UrlMatcherInterface::match() is called a second time here (the bridge already called
+// it once for #[AllowAnonymous] reflection). The double call is intentional — the
+// bridge must not call CurrentRoute::setRouteWithArguments(), which throws on a second
+// call, so route resolution for dispatch happens exclusively here.
+$appHandler = new class ($urlMatcher, $psr17, $container) implements RequestHandlerInterface {
     public function __construct(
-        private readonly string       $path,
-        private readonly Psr17Factory $psr17,
-    ) {}
+        private readonly UrlMatcherInterface $urlMatcher,
+        private readonly Psr17Factory        $psr17,
+        private readonly Container           $container,
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        if ($this->path === '/dashboard') {
-            /** @var Claims|null $claims */
-            $claims = $request->getAttribute('zitadel.claims');
+        $result = $this->urlMatcher->match($request);
 
-            return $this->psr17->createResponse(200)
-                ->withHeader('Content-Type', 'text/plain')
-                ->withBody($this->psr17->createStream(
-                    "Hello {$claims?->name}\nemail:{$claims?->email}\nsub:{$claims?->sub}"
-                ));
+        if (!$result->isSuccess()) {
+            return $this->psr17->createResponse(404)
+                ->withBody($this->psr17->createStream('Not Found'));
         }
 
-        if ($this->path === '/health') {
-            return $this->psr17->createResponse(200)
-                ->withHeader('Content-Type', 'text/plain')
-                ->withBody($this->psr17->createStream('OK'));
-        }
+        // Route::$middlewareDefinitions is private in yiisoft/router 3.x — read via reflection.
+        // The action class is always the last element (appended by Route::action()).
+        $prop        = new \ReflectionProperty($result->route(), 'middlewareDefinitions');
+        $definitions = (array) $prop->getValue($result->route());
+        $actionClass = end($definitions);
 
-        if ($this->path === '/home') {
-            return $this->psr17->createResponse(200)
-                ->withHeader('Content-Type', 'text/plain')
-                ->withBody($this->psr17->createStream('Welcome home'));
-        }
+        /** @var callable $action */
+        $action = $this->container->get($actionClass);
 
-        if ($this->path === '/api') {
-            /** @var Claims|null $claims */
-            $claims  = $request->getAttribute('zitadel.claims');
-            $payload = $claims !== null
-                ? ['authenticated' => true, 'sub' => $claims->sub, 'name' => $claims->name, 'email' => $claims->email]
-                : ['authenticated' => false];
-
-            return $this->psr17->createResponse(200)
-                ->withHeader('Content-Type', 'application/json')
-                ->withBody($this->psr17->createStream((string) json_encode($payload)));
-        }
-
-        return $this->psr17->createResponse(404)
-            ->withBody($this->psr17->createStream('Not Found'));
+        return $action($request, $this->psr17->createResponse());
     }
 };
 

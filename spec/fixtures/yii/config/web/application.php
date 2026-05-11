@@ -8,7 +8,7 @@ use App\Action\HealthAction;
 use App\Action\HomeAction;
 use Yiisoft\Router\Middleware\Router;
 use Yiisoft\Router\Route;
-use Zitadel\Sdk\Middleware\ZitadelMiddleware;
+use Zitadel\Sdk\Bridge\Yii\ZitadelMiddleware;
 
 return [
     'middlewares' => [

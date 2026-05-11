@@ -9,9 +9,6 @@ use Psr\Http\Message\ServerRequestInterface;
 use Zitadel\Sdk\Attribute\AllowAnonymous;
 use Zitadel\Sdk\Auth\Claims;
 
-// Note: AllowAnonymous has no runtime effect for Yii's middleware order, but a valid
-// Bearer token is still validated at step 5 (token extraction) before the attribute
-// check — so JWKS-based Bearer validation works correctly regardless.
 #[AllowAnonymous]
 final class ApiAction
 {
