@@ -34,7 +34,7 @@ use Zitadel\Sdk\Exception\PkceException;
  * {@see ZitadelHolder} for controller access via `ZitadelHolder::claims()`.
  *
  * `#[AllowAnonymous]` is supported: after routing resolves the controller,
- * `service('router')->getController()` returns the FQCN, and
+ * `service('router')->controllerName()` returns the FQCN, and
  * `service('router')->methodName()` returns the action name for reflection.
  */
 final readonly class ZitadelFilter implements FilterInterface
@@ -245,7 +245,7 @@ final readonly class ZitadelFilter implements FilterInterface
     {
         try {
             $router = service('router');
-            $controllerClass = $router->getController();
+            $controllerClass = $router->controllerName();
             $actionMethod    = $router->methodName();
         } catch (\Throwable) {
             return false;
