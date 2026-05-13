@@ -66,7 +66,7 @@ readonly class TokenValidator
         $payloadJson = self::base64urlDecode($payloadB64);
 
         // Step 4 — json_validate + json_decode header and payload
-        if (!json_validate($headerJson) || !json_validate($payloadJson)) {
+        if ($headerJson === null || $payloadJson === null || !json_validate($headerJson) || !json_validate($payloadJson)) {
             return null;
         }
 
@@ -129,6 +129,10 @@ readonly class TokenValidator
         // Step 11 — verify signature
         $signedInput = $headerB64 . '.' . $payloadB64;
         $signature   = self::base64urlDecodeRaw($sigB64);
+
+        if ($signature === null) {
+            return null;
+        }
 
         if ($algorithm->isEc()) {
             $signature = self::p1363ToDer($signature);
@@ -203,26 +207,31 @@ readonly class TokenValidator
     }
 
     /**
-     * Decodes a base64url-encoded string into raw binary (non-strict; invalid chars become null bytes).
+     * Decodes a base64url-encoded string into raw binary.
+     *
+     * Uses strict mode so that any non-base64 character in the input causes an
+     * immediate null return rather than silently discarding the offending byte.
      *
      * @param string $input Base64url-encoded value (no padding required).
-     * @return string Decoded binary string.
+     * @return string|null Decoded binary string, or null when the input is not valid base64url.
      */
-    private static function base64urlDecode(string $input): string
+    private static function base64urlDecode(string $input): ?string
     {
-        return (string) base64_decode(
+        $decoded = base64_decode(
             strtr($input, '-_', '+/') . str_repeat('=', (4 - strlen($input) % 4) % 4),
-            strict: false
+            strict: true
         );
+
+        return $decoded === false ? null : $decoded;
     }
 
     /**
      * Alias for {@see base64urlDecode()} — decodes a base64url-encoded string into raw binary.
      *
      * @param string $input Base64url-encoded value (no padding required).
-     * @return string Decoded binary string.
+     * @return string|null Decoded binary string, or null when the input is not valid base64url.
      */
-    private static function base64urlDecodeRaw(string $input): string
+    private static function base64urlDecodeRaw(string $input): ?string
     {
         return self::base64urlDecode($input);
     }

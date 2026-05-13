@@ -68,7 +68,9 @@ final class JwksCache implements JwksCacheInterface
 
         $jwks = $this->fetchJwks($jwksUri, $timeoutSeconds);
         if ($jwks === null) {
-            return null;
+            // Serve the stale cached key on a transient fetch failure rather than
+            // rejecting every token until the JWKS endpoint recovers.
+            return isset(self::$store[$cacheKey]) ? self::$store[$cacheKey]['key'] : null;
         }
 
         $key = $this->selectKey($jwks, $kid, $alg);

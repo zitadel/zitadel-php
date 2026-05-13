@@ -119,7 +119,6 @@ readonly class ZitadelPlugin
         // Store pending-protect flag; will check #[AllowAnonymous] at beforeDispatch
         if ($this->config->protectAll || $this->matchesRoutes($path, $this->config->protectedRoutes)) {
             $di->set('_zitadel_pending_redirect', true);
-            $di->set('_zitadel_path', $path);
             return true;
         }
 

@@ -278,7 +278,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
     private function buildCookieHeader(string $name, string $value, int $expire, bool $secure): string
     {
         $parts = [
-            urlencode($name) . '=' . urlencode($value),
+            $name . '=' . urlencode($value),
             'Expires=' . gmdate('D, d M Y H:i:s T', $expire),
             'Path=/',
             'SameSite=Lax',

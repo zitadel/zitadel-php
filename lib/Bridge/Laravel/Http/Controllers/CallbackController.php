@@ -90,7 +90,7 @@ readonly class CallbackController
         $response->cookie(
             '__nextgen_auth',
             $tokenToValidate,
-            $maxAge / 60,
+            (int) ceil($maxAge / 60),
             '/',
             null,
             $secure,

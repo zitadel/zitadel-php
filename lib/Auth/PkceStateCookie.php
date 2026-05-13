@@ -51,7 +51,11 @@ final class PkceStateCookie
         string $next,
         #[\SensitiveParameter] string $secret,
     ): string {
-        $key      = (string) hex2bin($secret);
+        $key = hex2bin($secret);
+        if ($key === false) {
+            throw new \InvalidArgumentException('[zitadel] cookieSecret is not valid hex.');
+        }
+
         $nonce    = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
         $payload  = json_encode(['verifier' => $verifier, 'state' => $state, 'next' => $next]);
         $cipher   = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt(
@@ -85,7 +89,10 @@ final class PkceStateCookie
 
         $nonce  = substr($raw, 0, SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
         $cipher = substr($raw, SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
-        $key    = (string) hex2bin($secret);
+        $key = hex2bin($secret);
+        if ($key === false) {
+            throw new \InvalidArgumentException('[zitadel] cookieSecret is not valid hex.');
+        }
 
         try {
             $plain = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt($cipher, '', $nonce, $key);
