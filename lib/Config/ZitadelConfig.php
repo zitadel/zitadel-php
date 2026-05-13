@@ -151,6 +151,14 @@ readonly class ZitadelConfig
             );
         }
 
+        if (str_ends_with($issuerUrl, '/')) {
+            throw new \InvalidArgumentException(
+                '[zitadel] issuerUrl must not have a trailing slash. ' .
+                "Received: \"{$issuerUrl}\". The iss claim in JWTs is compared by strict " .
+                'equality, so a trailing slash causes every token to be rejected silently.'
+            );
+        }
+
         if (str_ends_with(rtrim($issuerUrl, '/'), '/.well-known/openid-configuration')) {
             throw new \InvalidArgumentException(
                 '[zitadel] issuerUrl must be the base URL (e.g. https://my.zitadel.cloud), ' .

@@ -44,8 +44,7 @@ readonly class LogoutController
         ]);
 
         $response = redirect($this->config->endSessionEndpoint() . '?' . $params);
-        $response->withCookie(cookie()->forget('__nextgen_auth', '/'));
 
-        return $response;
+        return $response->withCookie(cookie()->forget('__nextgen_auth', '/'));
     }
 }

@@ -271,8 +271,8 @@ readonly class TokenValidator
             $s = "\x00" . $s;
         }
 
-        $rDer  = "\x02" . chr(strlen($r)) . $r;
-        $sDer  = "\x02" . chr(strlen($s)) . $s;
+        $rDer  = "\x02" . self::asn1Length(strlen($r)) . $r;
+        $sDer  = "\x02" . self::asn1Length(strlen($s)) . $s;
         $inner = $rDer . $sDer;
 
         return "\x30" . self::asn1Length(strlen($inner)) . $inner;

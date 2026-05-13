@@ -86,23 +86,21 @@ readonly class CallbackController
         $maxAge = max(0, $claims->exp - time());
         $secure = $request->isSecure();
 
-        $response = redirect($next);
-        $response->cookie(
-            '__nextgen_auth',
-            $tokenToValidate,
-            (int) ceil($maxAge / 60),
-            '/',
-            null,
-            $secure,
-            true,
-            false,
-            'lax'
-        );
-
-        // Delete the PKCE state cookie
-        $response->withCookie(cookie()->forget('__nextgen_pkce', '/'));
-
-        return $response;
+        // Delete the PKCE state cookie and set the auth token cookie.
+        // Both withCookie/cookie calls return a new response — chain them.
+        return redirect($next)
+            ->cookie(
+                '__nextgen_auth',
+                $tokenToValidate,
+                (int) ceil($maxAge / 60),
+                '/',
+                null,
+                $secure,
+                true,
+                false,
+                'lax'
+            )
+            ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
     }
 
     /**

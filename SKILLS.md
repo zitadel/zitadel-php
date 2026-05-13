@@ -90,7 +90,7 @@ class HomeController { … }
 | Laravel | ✅ | Middleware inspects `$request->route()->getControllerClass()` |
 | Symfony | ✅ | `KernelEvents::CONTROLLER` listener (after routing) |
 | Phalcon MVC | ✅ | `dispatch:beforeDispatch` event |
-| CodeIgniter 4 | ✅ | `service('router')->getController()` + reflection |
+| CodeIgniter 4 | ✅ | `service('router')->controllerName()` + reflection |
 | Yii 3 | ✅ | `ZitadelMiddleware` reads the action class from the matched route |
 | Slim 4 | ❌ | Use `ignoredRoutes` config instead |
 | Phalcon Micro | ❌ | Routes are closures; use `ignoredRoutes` config instead |

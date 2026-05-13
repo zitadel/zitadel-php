@@ -171,6 +171,10 @@ final class JwkConverter
      */
     private static function encodeInteger(string $bytes): string
     {
+        if ($bytes === '') {
+            throw new \InvalidArgumentException('[zitadel] Empty integer value in JWK field.');
+        }
+
         if (ord($bytes[0]) >= 0x80) {
             $bytes = "\x00" . $bytes;
         }
