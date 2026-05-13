@@ -350,7 +350,12 @@ $di->setShared('dispatcher', function () use ($eventsManager) {
 $application = new Application($di);
 $application->setEventsManager($eventsManager);
 
-$application->handle($_SERVER['REQUEST_URI'])->send();
+// ZitadelPlugin may short-circuit the request (redirect / callback) and
+// return false from handle(). Guard before calling send().
+$result = $application->handle($_SERVER['REQUEST_URI']);
+if ($result !== false) {
+    $result->send();
+}
 ```
 
 ### Controllers
