@@ -671,7 +671,7 @@ static `ZitadelHolder::claims()` rather than `$request->getAttribute()`.
 | `$email` | `string\|null` | Email address |
 | `$token` | `string` | Raw JWT — forward as `Authorization: Bearer $claims->token` |
 
-All other claims from the JWT payload are accessible via `$claims->get('custom_claim')`.
+All other claims from the JWT payload are accessible via `$claims->payload['custom_claim']`.
 
 ---
 

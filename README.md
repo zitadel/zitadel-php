@@ -7,7 +7,7 @@ Authorization Code + PKCE flow.
 - Zero custom routes — middleware intercepts callback and logout automatically
 - Zero external runtime dependencies — only `ext-openssl`, `ext-sodium`, `ext-curl`
 - PHP 8.3+ with full `readonly class` immutability
-- Supports Laravel, Symfony, Yii 3, CodeIgniter 4, Slim 4, Mezzio, and Phalcon
+- Supports Laravel, Symfony, Yii 3, CodeIgniter 4, and Phalcon
 
 ## Installation
 
