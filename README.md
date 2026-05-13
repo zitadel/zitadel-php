@@ -66,7 +66,7 @@ $config = new ZitadelConfig(
 
 ## Documentation
 
-See [docs/index.md](docs/index.md) or the [PHPDoc site](https://zitadel.github.io/zitadel-php).
+See [docs/index.rst](docs/index.rst) or the per-framework guides in `docs/`.
 
 ## License
 

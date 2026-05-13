@@ -296,7 +296,6 @@ if (file_exists(dirname(__DIR__) . '/.env')) {
 
 return [
     'app' => [
-        'secret'    => $_ENV['APP_SECRET']  ?? '',
         'serverUrl' => $_ENV['SERVER_URL']  ?? 'http://localhost:3000',
     ],
     'zitadel' => [
@@ -606,8 +605,8 @@ those paths — `ZitadelFilter` intercepts and responds first.
 ```php
 $routes->get('/', 'HomeController::index');
 $routes->get('/profile', 'ProfileController::show');
-$routes->get('/zitadel/callback', 'HomeController::index');
-$routes->get('/zitadel/logout',   'HomeController::index');
+$routes->get('/zitadel/callback', 'ZitadelController::callback');
+$routes->get('/zitadel/logout',   'ZitadelController::logout');
 $routes->set404Override('HomeController::notFound');
 ```
 
