@@ -71,4 +71,42 @@ final class PkceStateCookieTest extends TestCase
         self::assertNull(PkceStateCookie::decrypt('not-valid-at-all', $this->secret));
         self::assertNull(PkceStateCookie::decrypt('', $this->secret));
     }
+
+    // ---------------------------------------------------------------------------
+    // hex2bin guard — invalid cookieSecret must throw immediately
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Before the fix, hex2bin() returned false on a non-hex string; (string) false
+     * produced "" which was passed as a zero-length key to libsodium, causing an
+     * opaque SodiumException deep inside encrypt(). The guard must surface this
+     * as an InvalidArgumentException at the point of the bad argument.
+     */
+    public function testEncryptThrowsForInvalidHexSecret(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/cookieSecret/i');
+
+        PkceStateCookie::encrypt('verifier', 'state', '/next', 'not-valid-hex!');
+    }
+
+    public function testDecryptThrowsForInvalidHexSecret(): void
+    {
+        // Produce a valid ciphertext with the correct key first.
+        $encoded = PkceStateCookie::encrypt('verifier', 'state', '/next', $this->secret);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/cookieSecret/i');
+
+        // Pass the valid ciphertext but a garbage decryption key.
+        PkceStateCookie::decrypt($encoded, 'not-valid-hex!');
+    }
+
+    public function testEncryptThrowsForOddLengthHexSecret(): void
+    {
+        // hex2bin() returns false for odd-length strings regardless of character set.
+        $this->expectException(\InvalidArgumentException::class);
+
+        PkceStateCookie::encrypt('verifier', 'state', '/next', 'abc');
+    }
 }

@@ -96,4 +96,30 @@ final class JwkConverterTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         JwkConverter::toKey(['kty' => 'EC', 'crv' => 'P-256', 'x' => 'abc123']);
     }
+
+    /**
+     * A JWK with an empty `n` field decodes to a zero-length byte string.
+     * Before the fix, encodeInteger() would call ord($bytes[0]) on an empty
+     * string, producing an undefined-offset warning and unpredictable output.
+     * The guard must throw InvalidArgumentException before that access.
+     */
+    public function testThrowsForEmptyRsaModulus(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        // base64url('') == '' — decodes to an empty byte string
+        JwkConverter::toKey(['kty' => 'RSA', 'n' => '', 'e' => 'AQAB']);
+    }
+
+    public function testThrowsForEmptyRsaExponent(): void
+    {
+        // A real n from a fresh key, but an empty exponent — same guard path.
+        $rsaKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($rsaKey);
+        $details = openssl_pkey_get_details($rsaKey);
+        self::assertNotFalse($details);
+        $n = rtrim(strtr(base64_encode($details['rsa']['n']), '+/', '-_'), '=');
+
+        $this->expectException(\InvalidArgumentException::class);
+        JwkConverter::toKey(['kty' => 'RSA', 'n' => $n, 'e' => '']);
+    }
 }

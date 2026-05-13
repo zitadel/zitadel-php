@@ -51,11 +51,12 @@ final class PkceStateCookie
         string $next,
         #[\SensitiveParameter] string $secret,
     ): string {
-        $key = hex2bin($secret);
-        if ($key === false) {
+        if (!self::isValidHex($secret)) {
             throw new \InvalidArgumentException('[zitadel] cookieSecret is not valid hex.');
         }
 
+        /** @var string $key */
+        $key      = hex2bin($secret);
         $nonce    = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
         $payload  = json_encode(['verifier' => $verifier, 'state' => $state, 'next' => $next]);
         $cipher   = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt(
@@ -89,10 +90,12 @@ final class PkceStateCookie
 
         $nonce  = substr($raw, 0, SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
         $cipher = substr($raw, SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
-        $key = hex2bin($secret);
-        if ($key === false) {
+        if (!self::isValidHex($secret)) {
             throw new \InvalidArgumentException('[zitadel] cookieSecret is not valid hex.');
         }
+
+        /** @var string $key */
+        $key = hex2bin($secret);
 
         try {
             $plain = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt($cipher, '', $nonce, $key);
@@ -177,5 +180,16 @@ final class PkceStateCookie
             'Set-Cookie',
             self::COOKIE_NAME . '=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax'
         );
+    }
+
+    /**
+     * Returns true when `$hex` is a non-empty even-length string of hex digits.
+     *
+     * Pre-validating before calling `hex2bin()` avoids the PHP warning that
+     * `hex2bin()` emits for invalid input before returning `false`.
+     */
+    private static function isValidHex(string $hex): bool
+    {
+        return $hex !== '' && strlen($hex) % 2 === 0 && ctype_xdigit($hex);
     }
 }

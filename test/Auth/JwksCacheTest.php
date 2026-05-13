@@ -57,14 +57,17 @@ final class JwksCacheTest extends TestCase
         self::assertSame([], $ref->getValue(null));
     }
 
-    public function testExpiredCacheEntryReturnsNullWhenUnreachable(): void
+    /**
+     * When the cache entry is expired and the JWKS endpoint is unreachable,
+     * the cache must return the stale key rather than null. Returning null
+     * would reject every in-flight token until the endpoint recovers.
+     */
+    public function testExpiredCacheEntryReturnsStaleKeyWhenFetchFails(): void
     {
-        // Prime the cache with an entry that's already expired (fetchedAt = 0).
         $fakeKey  = openssl_pkey_new(['private_key_bits' => 512, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
         self::assertNotFalse($fakeKey);
 
-        // Use the SAME URL that the cache will look up, so the entry is found
-        // but treated as expired (fetchedAt=0 is long past the TTL=1 threshold).
+        // fetchedAt=0 ensures the TTL check (TTL=1) treats the entry as expired.
         $cacheKey = 'xyz://nowhere/keys:stale-kid';
         $ref      = new \ReflectionProperty(JwksCache::class, 'store');
         $ref->setValue(null, [
@@ -72,12 +75,23 @@ final class JwksCacheTest extends TestCase
         ]);
 
         $cache = new JwksCache();
-        // TTL=1 but fetchedAt=0 means the entry expired long ago.
-        // The cache will attempt a re-fetch; the invalid URL returns null.
-        // Use an invalid scheme so curl fails instantly without a TCP connection.
-        // 'xyz://' is not a scheme curl supports — CURLE_UNSUPPORTED_PROTOCOL
-        // is returned immediately with no TCP connection attempted.
+        // 'xyz://' is not a curl-supported scheme — fails instantly with
+        // CURLE_UNSUPPORTED_PROTOCOL, no TCP connection made.
         $result = $cache->getPublicKey('xyz://nowhere/keys', 'stale-kid', 'RS256', 1, 1);
+
+        // The stale key must be served — not null — so tokens are not rejected
+        // during a transient JWKS endpoint outage.
+        self::assertSame($fakeKey, $result);
+    }
+
+    /**
+     * When there is no existing cache entry at all and the fetch fails, null
+     * is the correct return — there is no stale key to fall back to.
+     */
+    public function testMissingCacheEntryReturnsNullWhenFetchFails(): void
+    {
+        $cache  = new JwksCache();
+        $result = $cache->getPublicKey('xyz://nowhere/keys', 'unknown-kid', 'RS256', 1, 1);
 
         self::assertNull($result);
     }

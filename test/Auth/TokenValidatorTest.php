@@ -38,6 +38,33 @@ final class TokenValidatorTest extends TestCase
         self::assertNull($this->validator->validate('one'));
     }
 
+    /**
+     * base64urlDecode uses strict: true since the fix. A token whose header or
+     * payload segment contains characters outside the base64url alphabet must be
+     * rejected outright — the old non-strict mode silently dropped the offending
+     * bytes which could allow a crafted token to decode with different data than
+     * intended (the signature check would still catch it, but we should reject
+     * earlier and unconditionally).
+     */
+    public function testRejectsTokenWithInvalidBase64InHeader(): void
+    {
+        // '!' is not a valid base64url character.
+        $header  = 'not!valid!base64url';
+        $payload = rtrim(strtr(base64_encode((string) json_encode(['sub' => 'u'])), '+/', '-_'), '=');
+        $token   = "{$header}.{$payload}.sig";
+
+        self::assertNull($this->validator->validate($token));
+    }
+
+    public function testRejectsTokenWithInvalidBase64InPayload(): void
+    {
+        $header  = rtrim(strtr(base64_encode((string) json_encode(['alg' => 'RS256', 'typ' => 'JWT'])), '+/', '-_'), '=');
+        $payload = 'not!valid!base64url';
+        $token   = "{$header}.{$payload}.sig";
+
+        self::assertNull($this->validator->validate($token));
+    }
+
     public function testReturnsNullForNoneAlgorithm(): void
     {
         $header  = rtrim(strtr(base64_encode(json_encode(['alg' => 'none', 'typ' => 'JWT'])), '+/', '-_'), '=');
