@@ -8,9 +8,9 @@ return [
     | Zitadel Instance
     |--------------------------------------------------------------------------
     */
-    'issuer_url'  => env('ZITADEL_ISSUER_URL', 'https://my.zitadel.cloud'),
+    'issuer_url'  => env('ZITADEL_ISSUER_URL'),
     'client_id'   => env('ZITADEL_CLIENT_ID'),
-    'redirect_uri' => env('ZITADEL_REDIRECT_URI'),
+    'redirect_uri' => rtrim((string) env('SERVER_URL', 'http://localhost:3000'), '/') . '/zitadel/callback',
 
     /*
     |--------------------------------------------------------------------------
@@ -28,8 +28,8 @@ return [
     */
     'callback_path'        => env('ZITADEL_CALLBACK_PATH', '/zitadel/callback'),
     'logout_path'          => env('ZITADEL_LOGOUT_PATH', '/zitadel/logout'),
-    'post_login_redirect'  => env('ZITADEL_POST_LOGIN_REDIRECT', '/'),
-    'post_logout_redirect' => env('ZITADEL_POST_LOGOUT_REDIRECT', '/'),
+    'post_login_redirect'  => env('ZITADEL_POST_LOGIN_URL', '/'),
+    'post_logout_redirect' => env('ZITADEL_POST_LOGOUT_URL', '/'),
 
     /*
     |--------------------------------------------------------------------------
