@@ -178,4 +178,64 @@ final class PkceFlowTest extends TestCase
 
         self::assertSame('id.payload.signature', PkceFlow::selectToken($tokens));
     }
+
+    /**
+     * An access_token consisting only of dots (e.g. "..") has the right number
+     * of dot separators but empty segments — it is not a valid JWT and must not
+     * be returned. selectToken() must fall back to id_token.
+     */
+    public function testSelectTokenFallsBackForAllDotsAccessToken(): void
+    {
+        $tokens = [
+            'access_token' => '..',   // 2 dots, 3 empty segments
+            'id_token'     => 'id.payload.signature',
+        ];
+
+        self::assertSame('id.payload.signature', PkceFlow::selectToken($tokens));
+    }
+
+    /**
+     * An access_token with a missing middle segment (e.g. "header..signature")
+     * has 2 dots but an empty payload — not a valid JWS.
+     * selectToken() must fall back to id_token.
+     */
+    public function testSelectTokenFallsBackForEmptyMiddleSegment(): void
+    {
+        $tokens = [
+            'access_token' => 'header..signature',
+            'id_token'     => 'id.payload.signature',
+        ];
+
+        self::assertSame('id.payload.signature', PkceFlow::selectToken($tokens));
+    }
+
+    /**
+     * An access_token with a trailing dot (e.g. "header.payload.") has 2 dots
+     * but an empty signature segment — not a valid JWS.
+     * selectToken() must fall back to id_token.
+     */
+    public function testSelectTokenFallsBackForEmptyTrailingSegment(): void
+    {
+        $tokens = [
+            'access_token' => 'header.payload.',
+            'id_token'     => 'id.payload.signature',
+        ];
+
+        self::assertSame('id.payload.signature', PkceFlow::selectToken($tokens));
+    }
+
+    /**
+     * An access_token with a leading dot (e.g. ".payload.signature") has 2 dots
+     * but an empty header segment — not a valid JWS.
+     * selectToken() must fall back to id_token.
+     */
+    public function testSelectTokenFallsBackForEmptyLeadingSegment(): void
+    {
+        $tokens = [
+            'access_token' => '.payload.signature',
+            'id_token'     => 'id.payload.signature',
+        ];
+
+        self::assertSame('id.payload.signature', PkceFlow::selectToken($tokens));
+    }
 }

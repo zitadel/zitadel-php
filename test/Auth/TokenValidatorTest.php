@@ -468,6 +468,79 @@ final class TokenValidatorTest extends TestCase
     }
 
     /**
+     * A non-integer `nbf` claim must cause the token to be rejected — silently
+     * ignoring a non-integer `nbf` would allow an attacker to bypass the
+     * not-before check by supplying a string value.
+     */
+    public function testRejectsTokenWithNonIntegerNbf(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+            'nbf' => 'not-a-number',
+        ]);
+
+        self::assertNull((new TokenValidator($this->config, $mockCache))->validate($token));
+    }
+
+    /**
+     * A non-integer `iat` claim must cause the token to be rejected — silently
+     * ignoring a non-integer `iat` would allow an attacker to bypass the
+     * issued-at check by supplying a string value.
+     */
+    public function testRejectsTokenWithNonIntegerIat(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => 'not-a-number',
+        ]);
+
+        self::assertNull((new TokenValidator($this->config, $mockCache))->validate($token));
+    }
+
+    /**
+     * When the `name` claim in the JWT payload is not a string (e.g. an integer),
+     * the validator must coerce it to null rather than returning a wrong type.
+     */
+    public function testNameClaimCoercedToNullWhenNotString(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub'  => 'u',
+            'iss'  => 'https://example.zitadel.cloud',
+            'exp'  => time() + 3600,
+            'iat'  => time(),
+            'name' => 123,
+        ]);
+
+        $claims = (new TokenValidator($this->config, $mockCache))->validate($token);
+        self::assertInstanceOf(Claims::class, $claims);
+        self::assertNull($claims->name);
+    }
+
+    /**
+     * When the `email` claim in the JWT payload is not a string (e.g. a boolean),
+     * the validator must coerce it to null rather than returning a wrong type.
+     */
+    public function testEmailClaimCoercedToNullWhenNotString(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub'   => 'u',
+            'iss'   => 'https://example.zitadel.cloud',
+            'exp'   => time() + 3600,
+            'iat'   => time(),
+            'email' => true,
+        ]);
+
+        $claims = (new TokenValidator($this->config, $mockCache))->validate($token);
+        self::assertInstanceOf(Claims::class, $claims);
+        self::assertNull($claims->email);
+    }
+
+    /**
      * @param array<string, mixed> $claims
      * @return array{0: string, 1: \Zitadel\Sdk\Auth\JwksCacheInterface}
      */

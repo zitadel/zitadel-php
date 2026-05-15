@@ -173,7 +173,7 @@ readonly class TokenValidator
         // Step 15 — nbf
         if (isset($payload['nbf'])) {
             $nbf = $payload['nbf'];
-            if (is_int($nbf) && $now < ($nbf - $skew)) {
+            if (!is_int($nbf) || $now < ($nbf - $skew)) {
                 return null;
             }
         }
@@ -181,7 +181,7 @@ readonly class TokenValidator
         // Step 16 — iat
         if (isset($payload['iat'])) {
             $iat = $payload['iat'];
-            if (is_int($iat) && $now < ($iat - $skew)) {
+            if (!is_int($iat) || $now < ($iat - $skew)) {
                 return null;
             }
         }

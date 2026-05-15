@@ -184,9 +184,14 @@ final class PkceFlow
     {
         $accessToken = $tokens['access_token'] ?? null;
 
-        // Prefer access_token when it is a plain signed JWS (3 segments).
+        // Prefer access_token when it is a plain signed JWS (3 non-empty segments).
+        // A dot-count of 2 is necessary but not sufficient: tokens like ".." or
+        // "header..signature" have empty segments and are not valid JWTs.
         if (is_string($accessToken) && substr_count($accessToken, '.') === 2) {
-            return $accessToken;
+            $parts = explode('.', $accessToken);
+            if ($parts[0] !== '' && $parts[1] !== '' && $parts[2] !== '') {
+                return $accessToken;
+            }
         }
 
         // Fall back to id_token (always a signed JWS in OIDC).

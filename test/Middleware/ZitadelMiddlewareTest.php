@@ -48,7 +48,7 @@ final class ZitadelMiddlewareTest extends TestCase
     /** Returns a no-op JwksCache used to satisfy TokenValidator's constructor. */
     private function noopCache(): JwksCacheInterface
     {
-        return new class implements JwksCacheInterface {
+        return new class () implements JwksCacheInterface {
             #[\Override]
             public function getPublicKey(
                 string $jwksUri,

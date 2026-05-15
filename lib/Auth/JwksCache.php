@@ -26,9 +26,25 @@ namespace Zitadel\Sdk\Auth;
  * rejected from the in-process cache — without hitting the network — until the TTL
  * expires. This prevents an attacker from exhausting server connections by sending
  * tokens with a high-cardinality stream of fabricated `kid` values.
+ *
+ * **Bounded memory**: `$store` is capped at {@see JwksCache::MAX_STORE_SIZE} entries.
+ * When the cap is reached, the oldest entry (by insertion order) is evicted before
+ * a new one is inserted. This limits memory consumption even when an attacker sends
+ * tokens with a high-cardinality stream of fabricated `kid` values — each fabricated
+ * kid still causes one network round-trip, but the in-process cache cannot grow
+ * beyond `MAX_STORE_SIZE` entries.
  */
 final class JwksCache implements JwksCacheInterface
 {
+    /**
+     * Maximum number of entries held in {@see JwksCache::$store} at any time.
+     *
+     * When this limit is reached, the entry that was inserted first (array head)
+     * is evicted to make room for the new one. This keeps memory use bounded
+     * even under a kid-rotation denial-of-service attack.
+     */
+    private const MAX_STORE_SIZE = 500;
+
     /**
      * In-process key store.
      *
@@ -37,6 +53,9 @@ final class JwksCache implements JwksCacheInterface
      *   A null `key` is a **negative-cache sentinel** — the key was not found in the
      *   JWKS response. The entry is still subject to TTL expiry so that a legitimate
      *   key rotation is picked up after `$ttlSeconds`.
+     *
+     * Insertion order is preserved (PHP arrays are ordered maps), which lets the
+     * eviction strategy simply call `array_shift()` to remove the oldest entry.
      *
      * @var array<string, array{key: \OpenSSLAsymmetricKey|null, fetchedAt: int}>
      */
@@ -92,6 +111,19 @@ final class JwksCache implements JwksCacheInterface
         // requests with the same unknown kid are rejected from cache without
         // making another HTTP round-trip to the JWKS endpoint, which prevents
         // a kid-rotation denial-of-service attack.
+        //
+        // Before inserting, remove any existing entry for this key so that a
+        // re-insert (TTL refresh) moves it to the tail of the insertion-order
+        // queue, keeping the eviction order accurate.
+        unset(self::$store[$cacheKey]);
+
+        // Enforce the upper bound: evict the oldest entry (array head) when
+        // the store is at capacity. array_shift() removes and returns the first
+        // element in insertion order, which is the least-recently-written entry.
+        if (count(self::$store) >= self::MAX_STORE_SIZE) {
+            array_shift(self::$store);
+        }
+
         self::$store[$cacheKey] = ['key' => $key, 'fetchedAt' => $now];
 
         return $key;

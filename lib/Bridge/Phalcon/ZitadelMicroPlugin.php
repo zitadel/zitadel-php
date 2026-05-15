@@ -68,6 +68,14 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
         $request = $di->get('request');
         $path    = '/' . ltrim($request->getURI(true), '/');
 
+        // Reset any stale pending-redirect flag from the previous request.
+        // In long-running runtimes (Swoole, RoadRunner) where the DI container
+        // is shared across requests, a flag not cleaned up due to an earlier
+        // exception could otherwise cause a spurious PKCE redirect.
+        if ($di->has('_zitadel_pending_redirect')) {
+            $di->remove('_zitadel_pending_redirect');
+        }
+
         // Handle proxy (before callback/logout — fires before route matching)
         if (HttpProxy::isProxyPath($path, $this->config->proxyPath)) {
             $response = $this->handleProxy($request);
@@ -113,7 +121,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
         $claims = $token !== null ? $this->validator->validate((string) $token) : null;
 
         if ($claims !== null) {
-            $di->set('zitadel.claims', $claims);
+            $di->set('zitadel.claims', static fn () => $claims);
             return true;
         }
 
