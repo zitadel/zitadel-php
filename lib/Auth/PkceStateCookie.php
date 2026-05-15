@@ -89,7 +89,7 @@ final class PkceStateCookie
         #[\SensitiveParameter] string $cookieValue,
         #[\SensitiveParameter] string $secret,
     ): ?array {
-        $raw = base64_decode(strtr($cookieValue, '-_', '+/') . str_repeat('=', (4 - strlen($cookieValue) % 4) % 4));
+        $raw = base64_decode(strtr($cookieValue, '-_', '+/') . str_repeat('=', (4 - strlen($cookieValue) % 4) % 4), true);
         if ($raw === false || strlen($raw) <= SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES) {
             return null;
         }

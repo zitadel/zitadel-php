@@ -114,4 +114,62 @@ final class ZitadelConfigTest extends TestCase
             proxyPath:    '//evil.com',
         );
     }
+
+    // ---------------------------------------------------------------------------
+    // postLogoutAbsoluteUri()
+    // ---------------------------------------------------------------------------
+
+    /**
+     * When redirectUri uses a non-standard port (e.g. localhost:3000), the port
+     * must be preserved in the absolute post-logout URI so it matches the URI
+     * that was registered with Zitadel exactly.
+     */
+    public function testPostLogoutAbsoluteUriIncludesNonStandardPort(): void
+    {
+        $config = new ZitadelConfig(
+            issuerUrl:           'http://localhost:8080',
+            clientId:            'client',
+            redirectUri:         'http://localhost:3000/zitadel/callback',
+            cookieSecret:        bin2hex(random_bytes(32)),
+            postLogoutRedirect:  '/',
+        );
+
+        self::assertSame('http://localhost:3000', $config->postLogoutAbsoluteUri());
+    }
+
+    /**
+     * When postLogoutRedirect is '/' (the default), the method must return just
+     * the origin (scheme + host [+ port]) without a trailing slash, matching the
+     * root URL registered in Zitadel.
+     */
+    public function testPostLogoutAbsoluteUriWithRootRedirectReturnsOrigin(): void
+    {
+        $config = new ZitadelConfig(
+            issuerUrl:           'https://example.zitadel.cloud',
+            clientId:            'client',
+            redirectUri:         'https://myapp.com/zitadel/callback',
+            cookieSecret:        bin2hex(random_bytes(32)),
+            postLogoutRedirect:  '/',
+        );
+
+        self::assertSame('https://myapp.com', $config->postLogoutAbsoluteUri());
+    }
+
+    /**
+     * When postLogoutRedirect is a non-root path (e.g. '/goodbye'), the method
+     * must append that path to the origin so callers can rely on a single
+     * source of truth for the registered URI.
+     */
+    public function testPostLogoutAbsoluteUriAppendsNonRootPath(): void
+    {
+        $config = new ZitadelConfig(
+            issuerUrl:           'https://example.zitadel.cloud',
+            clientId:            'client',
+            redirectUri:         'https://myapp.com/zitadel/callback',
+            cookieSecret:        bin2hex(random_bytes(32)),
+            postLogoutRedirect:  '/goodbye',
+        );
+
+        self::assertSame('https://myapp.com/goodbye', $config->postLogoutAbsoluteUri());
+    }
 }

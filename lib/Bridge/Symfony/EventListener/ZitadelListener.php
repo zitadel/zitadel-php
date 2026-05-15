@@ -320,31 +320,43 @@ readonly class ZitadelListener implements EventSubscriberInterface
             return $this->badRequest('Authentication failed — PKCE state cookie invalid. Please try signing in again.');
         }
 
+        $pkceDeleteCookie = new Cookie('__nextgen_pkce', '', 1, '/', null, $request->isSecure(), true, false, 'lax');
+
         $state = $request->query->get('state');
         if (!hash_equals($pkce['state'], (string) $state)) {
-            return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
+            $response = $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
+            $response->headers->setCookie($pkceDeleteCookie);
+            return $response;
         }
 
         $code = $request->query->get('code');
         if (!is_string($code) || $code === '') {
             $oauthError = $request->query->get('error_description') ?? $request->query->get('error') ?? 'Missing code';
-            return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
+            $response = $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
+            $response->headers->setCookie($pkceDeleteCookie);
+            return $response;
         }
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (PkceException $e) {
-            return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
+            $response = $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
+            $response->headers->setCookie($pkceDeleteCookie);
+            return $response;
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);
         if ($tokenToValidate === null) {
-            return $this->badRequest('Authentication failed — no usable token in response.');
+            $response = $this->badRequest('Authentication failed — no usable token in response.');
+            $response->headers->setCookie($pkceDeleteCookie);
+            return $response;
         }
 
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
-            return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
+            $response = $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
+            $response->headers->setCookie($pkceDeleteCookie);
+            return $response;
         }
 
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;

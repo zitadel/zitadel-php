@@ -71,17 +71,20 @@ readonly class CallbackController
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (PkceException $e) {
-            return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
+            return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.')
+                ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);
         if ($tokenToValidate === null) {
-            return $this->badRequest('Authentication failed — no usable token in response.');
+            return $this->badRequest('Authentication failed — no usable token in response.')
+                ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
         }
 
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
-            return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
+            return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.')
+                ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
         }
 
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;

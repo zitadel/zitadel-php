@@ -29,5 +29,5 @@ $app->getDI()->get('dispatcher')->setEventsManager($eventsManager);
 
 $result = $app->handle($_SERVER['REQUEST_URI']);
 if ($result !== false) {
-    echo $result->getContent();
+    $result->send();
 }

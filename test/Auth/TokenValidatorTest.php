@@ -352,6 +352,121 @@ final class TokenValidatorTest extends TestCase
         self::assertInstanceOf(Claims::class, (new TokenValidator($config, $mockCache))->validate($token));
     }
 
+    // ---------------------------------------------------------------------------
+    // typ header — at+JWT accepted, absent → rejected
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Zitadel issues access tokens with `typ: at+JWT` (RFC 9068). The validator
+     * must accept this value because it is listed in the default allowedTokenTypes
+     * alongside plain `typ: JWT`.
+     */
+    public function testAcceptsTokenWithAtJwtTypHeader(): void
+    {
+        $privateKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($privateKey);
+
+        $details = openssl_pkey_get_details($privateKey);
+        self::assertNotFalse($details);
+
+        $n   = rtrim(strtr(base64_encode($details['rsa']['n']), '+/', '-_'), '=');
+        $e   = rtrim(strtr(base64_encode($details['rsa']['e']), '+/', '-_'), '=');
+        $kid = 'rsa-atjwt-key';
+        $now = time();
+
+        // Use 'at+JWT' as the typ header value.
+        $header       = rtrim(strtr(base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'at+JWT', 'kid' => $kid])), '+/', '-_'), '=');
+        $payloadB64   = rtrim(strtr(base64_encode(json_encode([
+            'sub' => 'user-atjwt',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => $now + 3600,
+            'iat' => $now,
+        ])), '+/', '-_'), '=');
+        $signingInput = "{$header}.{$payloadB64}";
+
+        openssl_sign($signingInput, $signature, $privateKey, OPENSSL_ALGO_SHA256);
+        $sigEncoded = rtrim(strtr(base64_encode($signature), '+/', '-_'), '=');
+        $token = "{$signingInput}.{$sigEncoded}";
+
+        $jwks      = ['keys' => [['kty' => 'RSA', 'kid' => $kid, 'use' => 'sig', 'alg' => 'RS256', 'n' => $n, 'e' => $e]]];
+        $mockCache = $this->buildMockCache($jwks, 'https://example.zitadel.cloud/oauth/v2/keys', $kid);
+
+        $claims = (new TokenValidator($this->config, $mockCache))->validate($token);
+        self::assertInstanceOf(Claims::class, $claims);
+        self::assertSame('user-atjwt', $claims->sub);
+    }
+
+    /**
+     * A token with no `typ` header at all must be rejected (step 9 of the
+     * validation pipeline requires a non-null `typ` that matches an allowed type).
+     */
+    public function testReturnsNullWhenTypHeaderAbsent(): void
+    {
+        $header  = rtrim(strtr(base64_encode(json_encode(['alg' => 'RS256', 'kid' => 'k'])), '+/', '-_'), '=');
+        $payload = rtrim(strtr(base64_encode(json_encode([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+        ])), '+/', '-_'), '=');
+        $token = "{$header}.{$payload}.fakesig";
+
+        self::assertNull($this->validator->validate($token));
+    }
+
+    // ---------------------------------------------------------------------------
+    // aud claim as JSON array
+    // ---------------------------------------------------------------------------
+
+    /**
+     * The `aud` claim may be a JSON array of strings rather than a plain string.
+     * When the configured audience appears anywhere in that array, the token must
+     * be accepted.
+     */
+    public function testAcceptsAudienceClaimAsJsonArrayWithMatch(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+            'aud' => ['other-service', 'my-app', 'yet-another'],
+        ]);
+
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client-id',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            audience:     'my-app',
+        );
+        self::assertInstanceOf(Claims::class, (new TokenValidator($config, $mockCache))->validate($token));
+    }
+
+    /**
+     * When `aud` is a JSON array and none of its entries match the configured
+     * audience, the token must be rejected.
+     */
+    public function testRejectsAudienceClaimAsJsonArrayWithNoMatch(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+            'aud' => ['service-a', 'service-b'],
+        ]);
+
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client-id',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            audience:     'my-app',
+        );
+        self::assertNull((new TokenValidator($config, $mockCache))->validate($token));
+    }
+
     /**
      * @param array<string, mixed> $claims
      * @return array{0: string, 1: \Zitadel\Sdk\Auth\JwksCacheInterface}

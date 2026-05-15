@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Zitadel\Sdk\Test\Auth;
 
+use Nyholm\Psr7\Response;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 
@@ -108,5 +110,74 @@ final class PkceStateCookieTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
 
         PkceStateCookie::encrypt('verifier', 'state', '/next', 'abc');
+    }
+
+    // ---------------------------------------------------------------------------
+    // PSR-7 layer — write(), read(), delete()
+    // ---------------------------------------------------------------------------
+
+    /**
+     * When $secure is true, the Set-Cookie header produced by write() must
+     * contain the "; Secure" attribute so the browser only sends the cookie
+     * over HTTPS connections.
+     */
+    public function testWriteWithSecureTrueProducesSecureFlag(): void
+    {
+        $response = PkceStateCookie::write(
+            new Response(200),
+            'verifier',
+            'state',
+            '/next',
+            $this->secret,
+            true,
+        );
+
+        $header = $response->getHeaderLine('Set-Cookie');
+        self::assertStringContainsString('; Secure', $header);
+    }
+
+    /**
+     * When $secure is false the Set-Cookie header must NOT contain "; Secure"
+     * because browsers refuse to store Secure cookies on plain-HTTP connections,
+     * which would break the auth flow entirely.
+     */
+    public function testWriteWithSecureFalseOmitsSecureFlag(): void
+    {
+        $response = PkceStateCookie::write(
+            new Response(200),
+            'verifier',
+            'state',
+            '/next',
+            $this->secret,
+            false,
+        );
+
+        $header = $response->getHeaderLine('Set-Cookie');
+        self::assertStringNotContainsString('; Secure', $header);
+    }
+
+    /**
+     * read() must return null when the cookie name is absent from the request,
+     * rather than passing an empty/null value to decrypt() which would throw or
+     * return an unexpected result.
+     */
+    public function testReadReturnsNullWhenCookieAbsent(): void
+    {
+        $request = new ServerRequest('GET', 'https://myapp.com/');
+
+        self::assertNull(PkceStateCookie::read($request, $this->secret));
+    }
+
+    /**
+     * delete() must produce a Set-Cookie header with Max-Age=0 so the browser
+     * immediately expires the cookie. Any other Max-Age (or absence of it) would
+     * leave the cookie alive in the browser.
+     */
+    public function testDeleteProducesMaxAgeZero(): void
+    {
+        $response = PkceStateCookie::delete(new Response(200));
+
+        $header = $response->getHeaderLine('Set-Cookie');
+        self::assertStringContainsString('Max-Age=0', $header);
     }
 }

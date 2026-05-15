@@ -133,6 +133,12 @@ All options are constructor parameters of :php:class:`Zitadel\Sdk\Config\Zitadel
      - ``/zitadel/logout``
      - Path intercepted to clear the session and redirect to Zitadel's
        end-session endpoint.
+   * - ``proxyPath``
+     - ``string``
+     - ``/__nextgen``
+     - URL path prefix the middleware intercepts to reverse-proxy requests to
+       ``issuerUrl``. Strips the prefix and forwards the remainder (e.g.
+       ``/__nextgen/oauth/v2/keys`` → ``issuerUrl/oauth/v2/keys``).
    * - ``postLoginRedirect``
      - ``string``
      - ``/``

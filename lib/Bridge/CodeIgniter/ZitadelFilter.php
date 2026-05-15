@@ -279,29 +279,39 @@ final class ZitadelFilter implements FilterInterface
 
         $state = $request->getGet('state');
         if (!hash_equals($pkce['state'], (string) $state)) {
-            return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
+            $response = $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
+            $response->deleteCookie('__nextgen_pkce', '', '/');
+            return $response;
         }
 
         $code = $request->getGet('code');
         if (!is_string($code) || $code === '') {
             $oauthError = $request->getGet('error_description') ?? $request->getGet('error') ?? 'Missing code';
-            return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
+            $response = $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
+            $response->deleteCookie('__nextgen_pkce', '', '/');
+            return $response;
         }
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (PkceException $e) {
-            return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
+            $response = $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
+            $response->deleteCookie('__nextgen_pkce', '', '/');
+            return $response;
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);
         if ($tokenToValidate === null) {
-            return $this->badRequest('Authentication failed — no usable token in response.');
+            $response = $this->badRequest('Authentication failed — no usable token in response.');
+            $response->deleteCookie('__nextgen_pkce', '', '/');
+            return $response;
         }
 
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
-            return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
+            $response = $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
+            $response->deleteCookie('__nextgen_pkce', '', '/');
+            return $response;
         }
 
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
@@ -325,7 +335,7 @@ final class ZitadelFilter implements FilterInterface
     {
         $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);
         $response = response()->redirect($this->config->endSessionEndpoint() . '?' . $params);
-        $response->deleteCookie('__nextgen_auth', '', '/');
+        $response->setCookie('__nextgen_auth', '', 1, '', '/', '', $request->isSecure(), true, 'Lax');
 
         return $response;
     }

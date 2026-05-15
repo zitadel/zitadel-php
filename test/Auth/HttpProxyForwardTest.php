@@ -339,6 +339,45 @@ final class HttpProxyForwardTest extends TestCase
 
     // ── Multiple Set-Cookie header isolation ──────────────────────────────────
 
+    // ── CRLF injection guard ──────────────────────────────────────────────────
+
+    /**
+     * A header value containing CR (`\r`) or LF (`\n`) characters must be
+     * silently dropped before the request is forwarded. This prevents CRLF
+     * injection attacks that could split the HTTP request and inject arbitrary
+     * headers or body content into the upstream connection.
+     *
+     * The guard is validated explicitly in forward() so behaviour is not
+     * cURL-version-dependent (cURL 7.77+ also blocks these, but older builds do not).
+     */
+    public function testHeaderValueWithCrlfIsStrippedFromForwardedRequest(): void
+    {
+        // Inject a header whose value contains a CRLF sequence.
+        $echo = $this->echo('GET', [
+            'X-Injected'    => "legitimate\r\nX-Evil: injected",
+            'Accept'        => 'application/json',
+        ]);
+
+        // The CRLF-tainted header must have been dropped entirely.
+        self::assertArrayNotHasKey(
+            'x-injected',
+            $echo['headers'],
+            'A header value containing CRLF must be stripped from the forwarded request',
+        );
+        // An injected secondary header must not appear either.
+        self::assertArrayNotHasKey(
+            'x-evil',
+            $echo['headers'],
+            'A header injected via CRLF must not reach the upstream',
+        );
+        // A clean header sent alongside the tainted one must still be forwarded.
+        self::assertArrayHasKey(
+            'accept',
+            $echo['headers'],
+            'Clean headers must still be forwarded even when a sibling header is tainted',
+        );
+    }
+
     /**
      * When the upstream emits multiple `Set-Cookie` headers, each must appear as
      * a separate entry in the `setCookies` array returned by `forward()`.

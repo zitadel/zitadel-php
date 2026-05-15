@@ -48,6 +48,8 @@ Place `ZitadelMiddleware::class` before `Router::class` in your middleware pipel
 ### Slim 4 / Mezzio (PSR-15 native)
 
 ```php
+use Zitadel\Sdk\Middleware\ZitadelMiddleware;
+
 $app->add(new ZitadelMiddleware($config, $validator, $responseFactory));
 ```
 

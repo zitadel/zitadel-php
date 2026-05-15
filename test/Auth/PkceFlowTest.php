@@ -85,4 +85,97 @@ final class PkceFlowTest extends TestCase
         self::assertStringContainsString('redirect_uri=' . urlencode('https://myapp.com/zitadel/callback'), $url);
         self::assertStringContainsString('scope=openid', $url);
     }
+
+    // ---------------------------------------------------------------------------
+    // buildAuthorizationUrl — scope joining
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Multiple scopes must be joined with a single space character, not a comma.
+     * The OAuth 2.0 specification (RFC 6749 §3.3) requires space-separated scope
+     * values; a comma-separated list would be rejected by Zitadel.
+     */
+    public function testBuildAuthorizationUrlJoinsScopesWithSpace(): void
+    {
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'test-client',
+            redirectUri:  'https://myapp.com/zitadel/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            scopes:       ['openid', 'profile', 'email'],
+        );
+
+        $url = PkceFlow::buildAuthorizationUrl($config, 'challenge', 'state');
+
+        // The scope query parameter value must use %20 (space) as separator.
+        self::assertStringContainsString('scope=openid+profile+email', $url);
+        // It must not use a comma as separator.
+        self::assertStringNotContainsString('scope=openid,profile,email', $url);
+    }
+
+    // ---------------------------------------------------------------------------
+    // selectToken — all branches
+    // ---------------------------------------------------------------------------
+
+    /**
+     * A JWS access_token has exactly 3 dot-separated segments and must be
+     * preferred over the id_token when present.
+     */
+    public function testSelectTokenReturnsAccessTokenWhenJws(): void
+    {
+        $tokens = [
+            'access_token' => 'header.payload.signature',
+            'id_token'     => 'id.payload.signature',
+        ];
+
+        self::assertSame('header.payload.signature', PkceFlow::selectToken($tokens));
+    }
+
+    /**
+     * A JWE access_token has 5 dot-separated segments and cannot be validated
+     * locally. selectToken() must fall back to the id_token in this case.
+     */
+    public function testSelectTokenFallsBackToIdTokenForJweAccessToken(): void
+    {
+        $tokens = [
+            'access_token' => 'h.ek.iv.ciphertext.tag',
+            'id_token'     => 'id.payload.signature',
+        ];
+
+        self::assertSame('id.payload.signature', PkceFlow::selectToken($tokens));
+    }
+
+    /**
+     * When access_token is absent, selectToken() must return the id_token.
+     */
+    public function testSelectTokenReturnsIdTokenWhenAccessTokenAbsent(): void
+    {
+        $tokens = ['id_token' => 'id.payload.signature'];
+
+        self::assertSame('id.payload.signature', PkceFlow::selectToken($tokens));
+    }
+
+    /**
+     * When neither access_token nor id_token is present, selectToken() must
+     * return null.
+     */
+    public function testSelectTokenReturnsNullWhenNeitherPresent(): void
+    {
+        self::assertNull(PkceFlow::selectToken([]));
+        self::assertNull(PkceFlow::selectToken(['token_type' => 'Bearer']));
+    }
+
+    /**
+     * When access_token is not a string (e.g. an integer or null), the code
+     * falls through to id_token rather than crashing.
+     */
+    public function testSelectTokenFallsThroughWhenAccessTokenIsNotString(): void
+    {
+        $tokens = [
+            'access_token' => 12345,
+            'id_token'     => 'id.payload.signature',
+        ];
+
+        self::assertSame('id.payload.signature', PkceFlow::selectToken($tokens));
+    }
 }

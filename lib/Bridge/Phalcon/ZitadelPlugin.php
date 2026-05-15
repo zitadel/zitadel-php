@@ -328,36 +328,43 @@ readonly class ZitadelPlugin
             return $this->badRequest('Authentication failed — PKCE state cookie invalid. Please try signing in again.');
         }
 
+        // Determine Secure flag early — needed for PKCE cookie deletion on any error exit.
+        $secure = $request->isSecure();
+
         $state = $request->getQuery('state');
         if (!hash_equals($pkce['state'], (string) $state)) {
+            header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
             return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
         }
 
         $code = $request->getQuery('code');
         if (!is_string($code) || $code === '') {
             $oauthError = $request->getQuery('error_description') ?? $request->getQuery('error') ?? 'Missing code';
+            header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
             return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
         }
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (PkceException $e) {
+            header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
             return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);
         if ($tokenToValidate === null) {
+            header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
             return $this->badRequest('Authentication failed — no usable token in response.');
         }
 
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
+            header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
         }
 
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
         $maxAge = max(0, $claims->exp - time());
-        $secure = $request->isSecure();
 
         // Use header() directly with replace=false so both Set-Cookie headers survive.
         // Phalcon's Headers::send() calls header() with replace=true (the default), which
