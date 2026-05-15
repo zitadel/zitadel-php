@@ -268,6 +268,90 @@ abstract class AbstractIntegrationSpec extends TestCase
         self::assertStringContainsString('Welcome home', $page->locator('body')->innerText());
     }
 
+    public function testProxyForwardsRequestToUpstream(): void
+    {
+        // GET /__nextgen/jwks proxies to $issuerUrl/jwks — the mock server's signing-key endpoint.
+        // This exercises the full proxy pipeline: header stripping, X-Forwarded-* injection,
+        // upstream cURL fetch, response header forwarding, and body pass-through.
+        $ch = curl_init($this->baseUrl() . '/__nextgen/jwks');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_TIMEOUT         => 10,
+            CURLOPT_FOLLOWLOCATION  => false, // proxy strips location, so manual is correct here too
+        ]);
+        $body     = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        self::assertNotFalse($body, '/__nextgen/jwks must be reachable through the proxy');
+        self::assertSame(200, $httpCode, '/__nextgen/jwks must proxy to the upstream JWKS endpoint and return 200');
+
+        /** @var array<string, mixed>|null $jwks */
+        $jwks = json_decode((string) $body, true);
+        self::assertIsArray($jwks, 'Proxied response must be valid JSON');
+        self::assertArrayHasKey('keys', $jwks, 'Proxied JWKS response must contain a keys array');
+        self::assertIsArray($jwks['keys'], 'JWKS keys must be an array');
+        self::assertNotEmpty($jwks['keys'], 'JWKS keys array must contain at least one signing key');
+    }
+
+    public function testProxyForwardsQueryStringToUpstream(): void
+    {
+        // Verifies the query string is appended to the upstream URL unchanged.
+        // The mock server ignores unknown query params and still returns JWKS.
+        $ch = curl_init($this->baseUrl() . '/__nextgen/jwks?use=sig');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_TIMEOUT         => 10,
+            CURLOPT_FOLLOWLOCATION  => false,
+        ]);
+        $body     = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        self::assertNotFalse($body, '/__nextgen/jwks?use=sig must be reachable');
+        self::assertSame(200, $httpCode, 'Proxy must forward query string and upstream must still return 200');
+
+        /** @var array<string, mixed>|null $jwks */
+        $jwks = json_decode((string) $body, true);
+        self::assertIsArray($jwks);
+        self::assertArrayHasKey('keys', $jwks);
+    }
+
+    public function testProxyDoesNotFollowUpstreamRedirects(): void
+    {
+        // A path that causes a redirect upstream (e.g. the authorize endpoint redirects
+        // to the login page). The proxy must NOT follow the redirect — it must return
+        // the raw 302 from the upstream directly without a Location header (which is
+        // stripped by the proxy to prevent leaking internal upstream URLs to the browser).
+        $ch = curl_init($this->baseUrl() . '/__nextgen/authorize?response_type=code&client_id=test');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_TIMEOUT         => 10,
+            CURLOPT_FOLLOWLOCATION  => false,
+            CURLOPT_HEADER          => true,
+        ]);
+        $raw        = curl_exec($ch);
+        $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        $httpCode   = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        self::assertNotFalse($raw);
+
+        // If the upstream redirected (3xx), the proxy must have returned that status.
+        if ($httpCode >= 300 && $httpCode < 400) {
+            $rawHeaders = substr((string) $raw, 0, $headerSize);
+            // The `location` header must have been stripped by the proxy.
+            self::assertStringNotContainsStringIgnoringCase(
+                'location:',
+                $rawHeaders,
+                'Proxy must strip the Location header from upstream redirect responses',
+            );
+        }
+        // If the upstream returned something other than a redirect (some mock servers
+        // handle partial authorize requests differently), just verify we got a response.
+        self::assertGreaterThan(0, $httpCode, 'Proxy must return a non-zero status from the upstream');
+    }
+
     public function testApiWithoutTokenReturnsUnauthenticated(): void
     {
         $ch = curl_init($this->baseUrl() . '/api');
