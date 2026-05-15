@@ -352,6 +352,74 @@ abstract class AbstractIntegrationSpec extends TestCase
         self::assertGreaterThan(0, $httpCode, 'Proxy must return a non-zero status from the upstream');
     }
 
+    public function testProxyForwardsPostBodyToUpstream(): void
+    {
+        // POST /__nextgen/token with a form body exercises the proxy's non-GET/HEAD
+        // body forwarding path. The mock OAuth server handles client_credentials and
+        // returns a signed access_token, proving the request body reached upstream.
+        // This also validates that a non-empty CURLOPT_POSTFIELDS is always set for
+        // non-GET/HEAD methods (the empty-body guard bug would leave POSTFIELDS unset).
+        $ch = curl_init($this->baseUrl() . '/__nextgen/token');
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => http_build_query([
+                'grant_type'    => 'client_credentials',
+                'client_id'     => 'test-client',
+                'client_secret' => 'test-secret',
+            ]),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
+        ]);
+        $body     = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        self::assertNotFalse($body, 'POST /__nextgen/token must be reachable through the proxy');
+        // 502 means the proxy itself failed — the POST body did not reach upstream.
+        self::assertNotSame(502, $httpCode, '502 Bad Gateway indicates the proxy failed to forward the POST body to upstream');
+        self::assertSame(200, $httpCode, 'Mock server must return 200 for a valid client_credentials grant sent through the proxy');
+
+        /** @var array<string, mixed>|null $tokenResponse */
+        $tokenResponse = json_decode((string) $body, true);
+        self::assertIsArray($tokenResponse, 'Token endpoint response must be valid JSON');
+        self::assertArrayHasKey('access_token', $tokenResponse, 'POST body was forwarded; mock server must issue an access_token');
+    }
+
+    public function testProxyForwardsResponseHeadersFromUpstream(): void
+    {
+        // Verifies that non-hop-by-hop response headers (e.g. Content-Type) are
+        // passed through from the upstream to the client. This ensures the response
+        // header pipeline in HttpProxy::forward() works end-to-end.
+        $ch = curl_init($this->baseUrl() . '/__nextgen/jwks');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_TIMEOUT         => 10,
+            CURLOPT_FOLLOWLOCATION  => false,
+            CURLOPT_HEADER          => true,
+        ]);
+        $raw        = curl_exec($ch);
+        $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        curl_close($ch);
+
+        self::assertNotFalse($raw);
+        $rawHeaders = strtolower(substr((string) $raw, 0, $headerSize));
+
+        // The JWKS endpoint sets Content-Type: application/json.
+        // Content-Type is not a hop-by-hop header, so the proxy must forward it.
+        self::assertStringContainsString(
+            'content-type:',
+            $rawHeaders,
+            'Proxy must forward Content-Type response header from upstream',
+        );
+        self::assertStringContainsString(
+            'application/json',
+            $rawHeaders,
+            'JWKS Content-Type must be application/json and must be forwarded unchanged',
+        );
+    }
+
     public function testApiWithoutTokenReturnsUnauthenticated(): void
     {
         $ch = curl_init($this->baseUrl() . '/api');

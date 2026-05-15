@@ -222,7 +222,11 @@ final class HttpProxy
             CURLOPT_HTTPHEADER     => $curlHeaders,
         ];
 
-        if ($hasBody && $body !== '') {
+        // Always set POSTFIELDS for non-GET/HEAD methods — even an empty string —
+        // so that DELETE/POST with no payload sends Content-Length: 0, matching
+        // the Fetch API's behaviour (fetch() sends an empty body rather than
+        // omitting it when the method is non-GET/HEAD).
+        if ($hasBody) {
             $opts[CURLOPT_POSTFIELDS] = $body;
         }
 
