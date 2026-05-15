@@ -69,6 +69,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
             $response = $this->handleProxy($request);
             $di->set('response', $response);
             $response->send();
+            $application->stop();
             return false;
         }
 
@@ -77,6 +78,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
             $response = $this->handleCallback($request);
             $di->set('response', $response);
             $response->send();
+            $application->stop();
             return false;
         }
 
@@ -85,6 +87,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
             $response = $this->handleLogout($request);
             $di->set('response', $response);
             $response->send();
+            $application->stop();
             return false;
         }
 
@@ -134,6 +137,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
             $response->redirect($authUrl, true);
             $di->set('response', $response);
             $response->send();
+            $application->stop();
             return false;
         }
 
@@ -337,6 +341,13 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
     private function sanitizeNext(string $next): ?string
     {
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
+            return null;
+        }
+
+        // Reject paths that decode to a protocol-relative URL.
+        // A raw path of "/%2F/evil.com" starts with "/" and passes the literal
+        // "//" check, but decodes to "//evil.com" — an open redirect.
+        if (str_starts_with(rawurldecode($next), '//')) {
             return null;
         }
 

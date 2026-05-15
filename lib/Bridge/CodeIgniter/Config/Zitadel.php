@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Zitadel\Sdk\Bridge\CodeIgniter\Config;
 
 use CodeIgniter\Config\BaseConfig;
+use Zitadel\Sdk\Auth\Algorithm;
+use Zitadel\Sdk\Auth\TokenType;
 
 /**
  * Zitadel SDK configuration for CodeIgniter 4.
@@ -117,6 +119,29 @@ class Zitadel extends BaseConfig
 
     /** OAuth 2.0 scopes requested during authorization. */
     public array $scopes = ['openid', 'profile', 'email'];
+
+    /**
+     * JWT signing algorithms accepted during token validation.
+     * Override to restrict to a specific algorithm (e.g. `[Algorithm::RS256]`).
+     *
+     * @var Algorithm[]
+     */
+    public array $allowedAlgorithms = [Algorithm::RS256, Algorithm::ES256];
+
+    /**
+     * Accepted `typ` header values in the JWT.
+     *
+     * @var TokenType[]
+     */
+    public array $allowedTokenTypes = [TokenType::JWT, TokenType::AtJWT];
+
+    /**
+     * Expected `aud` claim value. When set, the token must contain this audience.
+     * Default: `null` (audience check skipped — not recommended for production).
+     *
+     * @var string|string[]|null
+     */
+    public string|array|null $audience = null;
 
     /** Allowed clock drift in seconds when validating JWT `exp` / `nbf` claims. */
     public int $clockSkewSeconds = 5;

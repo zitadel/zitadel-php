@@ -79,6 +79,14 @@ readonly class ZitadelPlugin
         $request = $di->get('request');
         $path    = '/' . ltrim($request->getURI(true), '/');
 
+        // Reset any stale pending-redirect flag from the previous request.
+        // In long-running runtimes (Swoole, RoadRunner) where the DI container
+        // is shared across requests, a flag not cleaned up due to an earlier
+        // exception could otherwise cause a spurious PKCE redirect.
+        if ($di->has('_zitadel_pending_redirect')) {
+            $di->remove('_zitadel_pending_redirect');
+        }
+
         // Handle proxy (before callback/logout — fires before routing)
         if (HttpProxy::isProxyPath($path, $this->config->proxyPath)) {
             $response = $this->handleProxy($request);
@@ -121,7 +129,7 @@ readonly class ZitadelPlugin
         $claims = $token !== null ? $this->validator->validate((string) $token) : null;
 
         if ($claims !== null) {
-            $di->set('zitadel.claims', $claims);
+            $di->set('zitadel.claims', static fn () => $claims);
             return true;
         }
 
@@ -423,6 +431,13 @@ readonly class ZitadelPlugin
     private function sanitizeNext(string $next): ?string
     {
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
+            return null;
+        }
+
+        // Reject paths that decode to a protocol-relative URL.
+        // A raw path of "/%2F/evil.com" starts with "/" and passes the literal
+        // "//" check, but decodes to "//evil.com" — an open redirect.
+        if (str_starts_with(rawurldecode($next), '//')) {
             return null;
         }
 

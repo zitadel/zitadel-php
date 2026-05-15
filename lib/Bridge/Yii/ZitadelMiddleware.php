@@ -127,8 +127,10 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
      * action class (the last element of `getData('enabledMiddlewares')`) for the
      * `#[AllowAnonymous]` attribute.
      *
-     * Does NOT call `CurrentRoute::setRouteWithArguments()` — that is left to the
-     * downstream Router middleware so the single-assignment constraint is not violated.
+     * Uses {@see Route::getData()} with key `'enabledMiddlewares'` to obtain the
+     * middleware stack — the last element is the action handler. Does NOT call
+     * `CurrentRoute::setRouteWithArguments()`, leaving that to the downstream
+     * Router middleware so the single-assignment constraint is not violated.
      *
      * @param ServerRequestInterface $request The current request.
      * @return bool True if the matched action class or its `__invoke` method carries
@@ -170,32 +172,21 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
     }
 
     /**
-     * Returns the middleware definitions registered on a route.
+     * Returns the enabled middleware definitions registered on a route.
      *
-     * The private property holding middleware definitions was renamed between
-     * major versions of `yiisoft/router`:
-     *  - v3.x: `$middlewareDefinitions`
-     *  - v4.x: `$middlewares`
-     *
-     * Both names are tried in preference order (v4 first) so the bridge works
-     * with either installed version without requiring a hard dependency on one.
+     * Uses {@see Route::getData()} with key `'enabledMiddlewares'` — the stable
+     * public API that respects any `disableMiddleware()` exclusions applied to
+     * the route. The action handler is always the last element in this list.
      *
      * @param Route $route The matched route.
-     * @return array<array|callable|string> The middleware definitions (action is last).
+     * @return array<array|callable|string> The enabled middleware definitions (action is last).
      */
     private function routeMiddlewareDefinitions(Route $route): array
     {
-        foreach (['middlewares', 'middlewareDefinitions'] as $propName) {
-            try {
-                $prop = new \ReflectionProperty($route, $propName);
+        /** @var array<array|callable|string> $definitions */
+        $definitions = $route->getData('enabledMiddlewares');
 
-                return (array) $prop->getValue($route);
-            } catch (\ReflectionException) {
-                // try next property name
-            }
-        }
-
-        return [];
+        return $definitions;
     }
 
     /**
@@ -461,6 +452,13 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
     private function sanitizeNext(string $next): ?string
     {
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
+            return null;
+        }
+
+        // Reject paths that decode to a protocol-relative URL.
+        // A raw path of "/%2F/evil.com" starts with "/" and passes the literal
+        // "//" check, but decodes to "//evil.com" — an open redirect.
+        if (str_starts_with(rawurldecode($next), '//')) {
             return null;
         }
 

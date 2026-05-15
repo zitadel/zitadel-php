@@ -451,6 +451,13 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
             return null;
         }
 
+        // Reject paths that decode to a protocol-relative URL.
+        // A raw path of "/%2F/evil.com" starts with "/" and passes the literal
+        // "//" check, but decodes to "//evil.com" — an open redirect.
+        if (str_starts_with(rawurldecode($next), '//')) {
+            return null;
+        }
+
         if (str_contains($next, '\\')) {
             return null;
         }

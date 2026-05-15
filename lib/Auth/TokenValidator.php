@@ -20,7 +20,7 @@ use Zitadel\Sdk\Config\ZitadelConfig;
  *  7. Map `alg` to {@see Algorithm} via `tryFrom` — unknown → null
  *  8. Reject if algorithm not in {@see ZitadelConfig::$allowedAlgorithms}
  *  9. Validate `typ` header (case-insensitive) against {@see ZitadelConfig::$allowedTokenTypes}
- * 10. Fetch public key via {@see JwksCache::getPublicKey()} (filters `"use":"sig"`) — null → null
+ * 10. Fetch public key via {@see JwksCacheInterface::getPublicKey()} (filters `"use":"sig"`) — null → null
  * 11. Verify signature with {@see openssl_verify()}. EC: convert IEEE P1363 → DER first
  * 12. Validate `iss` with strict string equality against {@see ZitadelConfig::$issuerUrl}
  * 13. Validate `aud` if {@see ZitadelConfig::$audience} is set

@@ -6,6 +6,7 @@ zitadel:
     protect_all: true
     ignored_routes:
         - '/health'
+    proxy_path: '/__nextgen'
     jwks_path: '%env(ZITADEL_JWKS_PATH)%'
     authorization_path: '%env(ZITADEL_AUTHORIZATION_PATH)%'
     token_path: '%env(ZITADEL_TOKEN_PATH)%'

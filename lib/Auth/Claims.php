@@ -13,8 +13,10 @@ namespace Zitadel\Sdk\Auth;
  *
  * Standard OIDC fields are promoted as typed properties; any additional claims
  * present in the token payload (custom Zitadel metadata, roles, etc.) are
- * available in {@see $payload}. The raw signed JWT string is exposed via
- * {@see $token} for forwarding to downstream services.
+ * available in {@see $payload}. Standard JWT claims that are validated by
+ * {@see \Zitadel\Sdk\Auth\TokenValidator} but not promoted as typed properties —
+ * `iat`, `nbf`, and `aud` — are also accessible via `$payload`. The raw signed
+ * JWT string is exposed via {@see $token} for forwarding to downstream services.
  */
 readonly class Claims
 {

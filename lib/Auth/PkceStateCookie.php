@@ -163,6 +163,7 @@ final class PkceStateCookie
      * @param ServerRequestInterface $request PSR-7 request carrying the cookie.
      * @param string                 $secret  Cookie encryption key.
      * @return array{verifier: string, state: string, next: string}|null
+     * @throws \InvalidArgumentException When `$secret` is not a valid 64-character hex string.
      */
     public static function read(
         ServerRequestInterface $request,

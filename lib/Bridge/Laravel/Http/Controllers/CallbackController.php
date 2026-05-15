@@ -57,13 +57,15 @@ readonly class CallbackController
 
         $state = $request->query('state');
         if (!hash_equals($pkce['state'], (string) $state)) {
-            return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
+            return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.')
+                ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
         }
 
         $code = $request->query('code');
         if (!is_string($code) || $code === '') {
             $oauthError = $request->query('error_description') ?? $request->query('error') ?? 'Missing code';
-            return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
+            return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.")
+                ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
         }
 
         try {
@@ -115,6 +117,13 @@ readonly class CallbackController
     private function sanitizeNext(string $next): ?string
     {
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
+            return null;
+        }
+
+        // Reject paths that decode to a protocol-relative URL.
+        // A raw path of "/%2F/evil.com" starts with "/" and passes the literal
+        // "//" check, but decodes to "//evil.com" — an open redirect.
+        if (str_starts_with(rawurldecode($next), '//')) {
             return null;
         }
 
