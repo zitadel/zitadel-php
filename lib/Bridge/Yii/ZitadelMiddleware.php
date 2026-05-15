@@ -275,12 +275,18 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
     {
         $pkce = PkceStateCookie::read($request, $this->config->cookieSecret);
 
-        if ($pkce === null) {
-            return $this->badRequest('Authentication failed — PKCE state cookie missing or invalid. Please try signing in again.');
-        }
-
         // Delete the PKCE cookie immediately — it is single-use regardless of outcome.
-        $pkceDeleteCookie = '__nextgen_pkce=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax';
+        // Match the Secure flag of the incoming request so browsers that enforce the
+        // Secure-cookie deletion rule (RFC 6265bis) will accept the expiry header.
+        $pkceDeleteCookie = '__nextgen_pkce=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax'
+            . ($isSecure ? '; Secure' : '');
+
+        if ($pkce === null) {
+            // The cookie was absent or could not be decrypted (tampered/wrong key).
+            // Send the delete header anyway to clear any corrupted cookie from the browser.
+            return $this->badRequest('Authentication failed — PKCE state cookie missing or invalid. Please try signing in again.')
+                ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
+        }
 
         $params = $request->getQueryParams();
         $code   = $params['code'] ?? null;

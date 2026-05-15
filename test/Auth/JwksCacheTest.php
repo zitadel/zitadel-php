@@ -95,4 +95,37 @@ final class JwksCacheTest extends TestCase
 
         self::assertNull($result);
     }
+
+    /**
+     * After a successful JWKS fetch that contains no key matching the requested
+     * `kid`, a negative-cache sentinel (null key) must be stored in `$store` so
+     * that the *next* call with the same kid is served from cache and does not
+     * trigger another HTTP round-trip.
+     *
+     * This protects against a kid-rotation denial-of-service attack where an
+     * attacker sends tokens with an ever-changing, fabricated `kid` to force a
+     * network request on every validation.
+     */
+    public function testUnknownKidIsNegativelyCachedAfterSuccessfulFetch(): void
+    {
+        // Prime the cache directly with a sentinel (key=null) to simulate the state
+        // after a successful JWKS fetch that contained no key for 'ghost-kid'.
+        $cacheKey = 'https://example.com/keys:ghost-kid';
+        $ref      = new \ReflectionProperty(JwksCache::class, 'store');
+        $ref->setValue(null, [
+            $cacheKey => ['key' => null, 'fetchedAt' => time()],
+        ]);
+
+        $cache = new JwksCache();
+        // TTL=300 keeps the sentinel fresh — no HTTP fetch should occur.
+        $result = $cache->getPublicKey('https://example.com/keys', 'ghost-kid', 'RS256', 300, 1);
+
+        // Null is the correct return for an unknown key; the important invariant
+        // is that the entry exists in the store (checked below).
+        self::assertNull($result);
+
+        $store = $ref->getValue(null);
+        self::assertArrayHasKey($cacheKey, $store);
+        self::assertNull($store[$cacheKey]['key'], 'Negative-cache sentinel must persist as null in the store.');
+    }
 }

@@ -212,6 +212,16 @@ final class HttpProxy
             $curlHeaders[] = $name . ': ' . $value;
         }
 
+        // curl_init() in PHP 8 throws a ValueError (an Error, not an Exception) when
+        // the URL contains a null byte, because libcurl treats URLs as C strings and
+        // stops at the first null byte. Catching ValueError from curl_init() would mask
+        // a real programming error, so we validate proactively and throw a RuntimeException
+        // so the middleware's catch block can convert it to a 502 instead of an unhandled
+        // exception that crashes with a 500.
+        if (str_contains($targetUrl, "\0")) {
+            throw new \RuntimeException('[zitadel] Proxy target URL contains a null byte.');
+        }
+
         $ch = curl_init($targetUrl);
         if ($ch === false) {
             throw new \RuntimeException('[zitadel] Failed to initialise cURL for proxy request.');

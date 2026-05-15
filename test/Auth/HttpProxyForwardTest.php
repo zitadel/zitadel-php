@@ -378,6 +378,36 @@ final class HttpProxyForwardTest extends TestCase
         );
     }
 
+    // ── Null-byte guard ───────────────────────────────────────────────────────
+
+    /**
+     * A null byte (`\0`) in the target URL must cause `forward()` to throw a
+     * `RuntimeException` rather than allowing PHP 8's `curl_init()` to throw an
+     * unhandled `ValueError` (which is an `Error`, not an `Exception`, and
+     * therefore escapes the middleware's `catch(\RuntimeException)` block,
+     * producing an unhandled exception / 500 instead of a clean 502).
+     *
+     * In practice, valid HTTP servers strip null bytes from request paths before
+     * they reach PHP. This guard is a defensive belt-and-suspenders measure that
+     * also serves as documentation of the curl_init() behaviour.
+     */
+    public function testNullByteInTargetUrlThrowsRuntimeException(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/null byte/i');
+
+        HttpProxy::forward(
+            'GET',
+            "http://127.0.0.1:" . self::$port . "/foo\0bar",
+            [],
+            '',
+            '1.2.3.4',
+            'host',
+            'http',
+            5,
+        );
+    }
+
     /**
      * When the upstream emits multiple `Set-Cookie` headers, each must appear as
      * a separate entry in the `setCookies` array returned by `forward()`.

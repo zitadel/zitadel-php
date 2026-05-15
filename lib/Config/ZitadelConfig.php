@@ -94,7 +94,8 @@ readonly class ZitadelConfig
      *                                                  Default: `/oauth/v2/token`
      * @param string               $endSessionPath     URL path for the end-session endpoint.
      *                                                  Default: `/oidc/v1/end_session`
-     * @throws \InvalidArgumentException If `$cookieSecret` is not a 64-character hex string,
+     * @throws \InvalidArgumentException If `$redirectUri` is not an absolute URL with a non-empty
+     *                                   host, `$cookieSecret` is not a 64-character hex string,
      *                                   `$clockSkewSeconds` or `$jwksTtlSeconds` or
      *                                   `$httpTimeoutSeconds` are negative, or
      *                                   `$allowedAlgorithms` / `$allowedTokenTypes` are empty.
@@ -173,11 +174,30 @@ readonly class ZitadelConfig
             );
         }
 
-        if (!str_starts_with($proxyPath, '/') || str_starts_with($proxyPath, '//')) {
+        $parsedRedirectUri = parse_url($redirectUri);
+        $redirectUriHost   = $parsedRedirectUri['host'] ?? '';
+        if (
+            $redirectUriHost === '' ||
+            (
+                !str_starts_with($redirectUri, 'https://') &&
+                !str_starts_with($redirectUri, 'http://localhost') &&
+                !str_starts_with($redirectUri, 'http://127.')
+            )
+        ) {
             throw new \InvalidArgumentException(
-                "[zitadel] proxyPath must be a relative path starting with a single \"/\". " .
-                "Received: \"{$proxyPath}\"."
+                '[zitadel] redirectUri must be an absolute URL with a non-empty host. ' .
+                'HTTP is only permitted for localhost development. ' .
+                "Received: \"{$redirectUri}\""
             );
+        }
+
+        foreach (['callbackPath' => $callbackPath, 'logoutPath' => $logoutPath, 'proxyPath' => $proxyPath] as $name => $value) {
+            if (!str_starts_with($value, '/') || str_starts_with($value, '//')) {
+                throw new \InvalidArgumentException(
+                    "[zitadel] {$name} must be a relative path starting with a single \"/\". " .
+                    "Received: \"{$value}\"."
+                );
+            }
         }
 
         foreach (['postLoginRedirect' => $postLoginRedirect, 'postLogoutRedirect' => $postLogoutRedirect] as $name => $value) {

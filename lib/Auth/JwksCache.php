@@ -19,6 +19,13 @@ namespace Zitadel\Sdk\Auth;
  * persists across requests within a worker process. This is intentional for
  * performance. Set `$jwksTtlSeconds` conservatively if key rotation is frequent.
  * The cache is safe to share across requests — keys are read-only once fetched.
+ *
+ * **Kid-rotation DoS protection**: when a JWKS fetch succeeds but contains no key
+ * matching a requested `kid`, a negative-cache sentinel is stored under the same
+ * `{uri}:{kid}` key. Subsequent requests carrying the same unknown `kid` are
+ * rejected from the in-process cache — without hitting the network — until the TTL
+ * expires. This prevents an attacker from exhausting server connections by sending
+ * tokens with a high-cardinality stream of fabricated `kid` values.
  */
 final class JwksCache implements JwksCacheInterface
 {
@@ -26,9 +33,12 @@ final class JwksCache implements JwksCacheInterface
      * In-process key store.
      *
      * Keys: `"{jwksUri}:{kid}"` or `"{jwksUri}:__default__"` when no `kid` is present.
-     * Values: `['key' => OpenSSLAsymmetricKey, 'fetchedAt' => int]`
+     * Values: `['key' => OpenSSLAsymmetricKey|null, 'fetchedAt' => int]`
+     *   A null `key` is a **negative-cache sentinel** — the key was not found in the
+     *   JWKS response. The entry is still subject to TTL expiry so that a legitimate
+     *   key rotation is picked up after `$ttlSeconds`.
      *
-     * @var array<string, array{key: \OpenSSLAsymmetricKey, fetchedAt: int}>
+     * @var array<string, array{key: \OpenSSLAsymmetricKey|null, fetchedAt: int}>
      */
     private static array $store = [];
 
@@ -60,24 +70,28 @@ final class JwksCache implements JwksCacheInterface
         $now      = time();
 
         if (
-            isset(self::$store[$cacheKey]) &&
+            array_key_exists($cacheKey, self::$store) &&
             ($now - self::$store[$cacheKey]['fetchedAt']) < $ttlSeconds
         ) {
+            // Returns null for negative-cache sentinels (unknown kid) as well as
+            // for valid keys — callers treat null as "key not found".
             return self::$store[$cacheKey]['key'];
         }
 
         $jwks = $this->fetchJwks($jwksUri, $timeoutSeconds);
         if ($jwks === null) {
-            // Serve the stale cached key on a transient fetch failure rather than
+            // Serve the stale cached entry on a transient fetch failure rather than
             // rejecting every token until the JWKS endpoint recovers.
-            return isset(self::$store[$cacheKey]) ? self::$store[$cacheKey]['key'] : null;
+            return array_key_exists($cacheKey, self::$store) ? self::$store[$cacheKey]['key'] : null;
         }
 
         $key = $this->selectKey($jwks, $kid, $alg);
-        if ($key === null) {
-            return null;
-        }
 
+        // Store the result regardless of whether a matching key was found.
+        // A null value here acts as a negative-cache sentinel: subsequent
+        // requests with the same unknown kid are rejected from cache without
+        // making another HTTP round-trip to the JWKS endpoint, which prevents
+        // a kid-rotation denial-of-service attack.
         self::$store[$cacheKey] = ['key' => $key, 'fetchedAt' => $now];
 
         return $key;

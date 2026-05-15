@@ -59,6 +59,100 @@ final class ZitadelConfigTest extends TestCase
     }
 
     // ---------------------------------------------------------------------------
+    // redirectUri validation
+    // ---------------------------------------------------------------------------
+
+    /**
+     * A bare relative path as redirectUri (e.g. '/callback') has no host, so
+     * parse_url() returns no 'host' key. Without a constructor guard,
+     * postLogoutAbsoluteUri() would silently produce 'https://' — a broken URI.
+     * The constructor must reject it eagerly.
+     */
+    public function testThrowsForRelativeRedirectUri(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/redirectUri/i');
+
+        new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client',
+            redirectUri:  '/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+        );
+    }
+
+    public function testThrowsForHttpRedirectUriOnNonLocalhost(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/redirectUri/i');
+
+        new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client',
+            redirectUri:  'http://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+        );
+    }
+
+    public function testAcceptsHttpLocalhostRedirectUri(): void
+    {
+        $config = new ZitadelConfig(
+            issuerUrl:    'http://localhost:8080',
+            clientId:     'client',
+            redirectUri:  'http://localhost:3000/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+        );
+
+        self::assertSame('http://localhost:3000/callback', $config->redirectUri);
+    }
+
+    // ---------------------------------------------------------------------------
+    // callbackPath / logoutPath validation
+    // ---------------------------------------------------------------------------
+
+    public function testThrowsForAbsoluteCallbackPath(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/callbackPath/i');
+
+        new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            callbackPath: 'https://evil.com',
+        );
+    }
+
+    public function testThrowsForProtocolRelativeCallbackPath(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/callbackPath/i');
+
+        new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            callbackPath: '//evil.com',
+        );
+    }
+
+    public function testThrowsForAbsoluteLogoutPath(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/logoutPath/i');
+
+        new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            logoutPath:   'https://evil.com',
+        );
+    }
+
+    // ---------------------------------------------------------------------------
     // proxyPath validation
     // ---------------------------------------------------------------------------
 
