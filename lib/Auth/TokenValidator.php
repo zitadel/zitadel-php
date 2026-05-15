@@ -27,7 +27,7 @@ use Zitadel\Sdk\Config\ZitadelConfig;
  * 14. Validate `exp` (must be in the future, minus clock skew)
  * 15. Validate `nbf` if present (must be in the past, plus clock skew)
  * 16. Validate `iat` if present (must not be in the future, plus clock skew)
- * 17. Require `sub` present and non-empty
+ * 17. Require `sub` present, non-empty, and non-whitespace-only
  * 18. Return {@see Claims} (including `$token` = raw signed JWT). Any failure → null; never throws
  */
 readonly class TokenValidator
@@ -86,8 +86,8 @@ readonly class TokenValidator
 
         $algStr = $header['alg'];
 
-        // Step 6 — reject alg:none unconditionally
-        if (strtolower($algStr) === 'none') {
+        // Step 6 — reject alg:none unconditionally (trim first so ' none ' does not sneak past)
+        if (strtolower(trim($algStr)) === 'none') {
             return null;
         }
 
@@ -197,7 +197,7 @@ readonly class TokenValidator
 
         // Step 17 — sub
         $sub = $payload['sub'] ?? null;
-        if (!is_string($sub) || $sub === '') {
+        if (!is_string($sub) || trim($sub) === '') {
             return null;
         }
 

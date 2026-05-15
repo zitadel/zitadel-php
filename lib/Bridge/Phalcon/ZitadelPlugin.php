@@ -128,8 +128,11 @@ readonly class ZitadelPlugin
         $token  = null;
         if (str_starts_with($bearer, 'Bearer ')) {
             $token = substr($bearer, 7);
-        } elseif (isset($_COOKIE['__nextgen_auth'])) {
-            $token = $_COOKIE['__nextgen_auth'];
+        } else {
+            $cookie = $_COOKIE['__nextgen_auth'] ?? null;
+            if (is_string($cookie) && $cookie !== '') {
+                $token = $cookie;
+            }
         }
 
         $claims = $token !== null ? $this->validator->validate((string) $token) : null;
@@ -395,7 +398,14 @@ readonly class ZitadelPlugin
      */
     private function handleLogout(Request $request): Response
     {
-        header($this->buildCookieHeader('__nextgen_auth', '', 0, $request->isSecure()), false);
+        $secure = $request->isSecure();
+        header($this->buildCookieHeader('__nextgen_auth', '', 0, $secure), false);
+
+        foreach (array_keys($_COOKIE) as $name) {
+            if (str_starts_with((string) $name, '__nextgen') && (string) $name !== '__nextgen_auth') {
+                header($this->buildCookieHeader((string) $name, '', 0, $secure), false);
+            }
+        }
 
         $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);
         $location = $this->config->endSessionEndpoint() . '?' . $params;

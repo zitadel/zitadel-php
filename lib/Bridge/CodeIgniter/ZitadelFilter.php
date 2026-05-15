@@ -337,6 +337,12 @@ final class ZitadelFilter implements FilterInterface
         $response = response()->redirect($this->config->endSessionEndpoint() . '?' . $params);
         $response->setCookie('__nextgen_auth', '', 1, '', '/', '', $request->isSecure(), true, 'Lax');
 
+        foreach ($request->getCookieNames() as $name) {
+            if (str_starts_with((string) $name, '__nextgen') && (string) $name !== '__nextgen_auth') {
+                $response->deleteCookie((string) $name, '', '/');
+            }
+        }
+
         return $response;
     }
 

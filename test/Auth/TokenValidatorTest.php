@@ -616,7 +616,7 @@ final class TokenValidatorTest extends TestCase
             'iat' => time(),
         ]);
 
-        $nullCache = new class implements \Zitadel\Sdk\Auth\JwksCacheInterface {
+        $nullCache = new class () implements \Zitadel\Sdk\Auth\JwksCacheInterface {
             #[\Override]
             public function getPublicKey(
                 string $jwksUri,
@@ -669,6 +669,224 @@ final class TokenValidatorTest extends TestCase
             'iat' => time(),
         ]);
 
+        self::assertNull((new TokenValidator($this->config, $mockCache))->validate($token));
+    }
+
+    /**
+     * A `sub` claim that is only whitespace (e.g. "   ") conveys no identity and
+     * must be rejected. The empty-string check `$sub === ''` is insufficient because
+     * whitespace characters are not the empty string; `trim($sub) === ''` is required.
+     */
+    public function testReturnsNullForWhitespaceOnlySub(): void
+    {
+        foreach ([' ', '   ', "\t", "\n", " \t\n"] as $sub) {
+            [$token, $mockCache] = $this->buildRs256Token([
+                'sub' => $sub,
+                'iss' => 'https://example.zitadel.cloud',
+                'exp' => time() + 3600,
+                'iat' => time(),
+            ]);
+
+            self::assertNull(
+                (new TokenValidator($this->config, $mockCache))->validate($token),
+                "sub={$sub} (whitespace-only) should be rejected",
+            );
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // alg: none bypass variants (attack patterns 1 & 2)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * `alg: "None"` (mixed case) must be caught by the case-insensitive none check
+     * at step 6. This is already covered by testReturnsNullForNoneAlgorithmCaseInsensitive()
+     * but is confirmed explicitly here for documentation purposes.
+     */
+    public function testRejectsNoneAlgorithmMixedCase(): void
+    {
+        $header  = rtrim(strtr(base64_encode(json_encode(['alg' => 'None', 'typ' => 'JWT'])), '+/', '-_'), '=');
+        $payload = rtrim(strtr(base64_encode(json_encode(['sub' => 'u', 'iss' => 'https://example.zitadel.cloud', 'exp' => time() + 3600])), '+/', '-_'), '=');
+        $token   = "{$header}.{$payload}.";
+
+        self::assertNull($this->validator->validate($token));
+    }
+
+    /**
+     * `alg: " none "` (with surrounding whitespace) must be rejected at step 6.
+     *
+     * Without trim(), strtolower(' none ') === 'none' is false, so the none check
+     * is silently skipped. Step 7 (Algorithm::tryFrom) would still reject it because
+     * no enum case matches ' none ', but that ordering dependency is fragile. The
+     * trim() fix ensures the none check itself catches it unconditionally.
+     */
+    public function testRejectsNoneAlgorithmWithSurroundingSpaces(): void
+    {
+        foreach ([' none', 'none ', ' none ', " NONE\t"] as $alg) {
+            $header  = rtrim(strtr(base64_encode(json_encode(['alg' => $alg, 'typ' => 'JWT'])), '+/', '-_'), '=');
+            $payload = rtrim(strtr(base64_encode(json_encode(['sub' => 'u', 'iss' => 'https://example.zitadel.cloud', 'exp' => time() + 3600])), '+/', '-_'), '=');
+            $token   = "{$header}.{$payload}.";
+
+            self::assertNull($this->validator->validate($token), "alg={$alg} should be rejected");
+        }
+    }
+
+    /**
+     * `alg: ""` (empty string) must be rejected. An empty string is not a valid
+     * algorithm name; Algorithm::tryFrom('') returns null which causes rejection
+     * at step 7. This confirms that the guard at step 5 (is_string check) does not
+     * accidentally accept empty strings as a valid algorithm.
+     */
+    public function testRejectsEmptyStringAlgorithm(): void
+    {
+        $header  = rtrim(strtr(base64_encode(json_encode(['alg' => '', 'typ' => 'JWT'])), '+/', '-_'), '=');
+        $payload = rtrim(strtr(base64_encode(json_encode(['sub' => 'u', 'iss' => 'https://example.zitadel.cloud', 'exp' => time() + 3600])), '+/', '-_'), '=');
+        $token   = "{$header}.{$payload}.";
+
+        self::assertNull($this->validator->validate($token));
+    }
+
+    // ---------------------------------------------------------------------------
+    // typ header — trailing space and other whitespace variants (attack pattern 4)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * `typ: "JWT "` (trailing space) must be rejected. strtolower('JWT ') === 'jwt '
+     * which does not match any entry in the allowed list (['jwt', 'at+jwt']).
+     * This confirms that the typ check is strict and does not silently trim values.
+     */
+    public function testRejectsTypHeaderWithTrailingSpace(): void
+    {
+        foreach (['JWT ', ' JWT', 'JWT\t', 'at+JWT '] as $typ) {
+            $header  = rtrim(strtr(base64_encode(json_encode(['alg' => 'RS256', 'typ' => $typ])), '+/', '-_'), '=');
+            $payload = rtrim(strtr(base64_encode(json_encode(['sub' => 'u', 'iss' => 'https://example.zitadel.cloud', 'exp' => time() + 3600])), '+/', '-_'), '=');
+            $token   = "{$header}.{$payload}.fakesig";
+
+            self::assertNull($this->validator->validate($token), "typ={$typ} should be rejected");
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // kid: null in header (attack pattern 5)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * When the JWT header contains `"kid": null`, the validator must not pass the
+     * literal null to getPublicKey as if it were a valid key ID. The null-coalescing
+     * guard (`isset($header['kid']) && is_string($header['kid'])`) converts null to
+     * a PHP null which is the correct "no key ID provided" sentinel.
+     *
+     * The resulting token is still rejected (null kid may not resolve to a key in
+     * the mock), but the important thing is that the validator does not crash or
+     * accept a null kid as a match.
+     */
+    public function testNullKidInHeaderIsHandledSafely(): void
+    {
+        // Build a header with explicit kid: null
+        $header  = rtrim(strtr(base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT', 'kid' => null])), '+/', '-_'), '=');
+        $payload = rtrim(strtr(base64_encode(json_encode(['sub' => 'u', 'iss' => 'https://example.zitadel.cloud', 'exp' => time() + 3600])), '+/', '-_'), '=');
+        $token   = "{$header}.{$payload}.fakesig";
+
+        // Should return null (no key found or bad sig), not throw
+        self::assertNull($this->validator->validate($token));
+    }
+
+    // ---------------------------------------------------------------------------
+    // alg as array (attack pattern 6)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * When `alg` is a JSON array rather than a string (e.g. `["RS256"]`), the
+     * is_string() guard at step 5 must reject the token immediately. Without this
+     * guard, passing an array to Algorithm::tryFrom() could produce a type error.
+     */
+    public function testRejectsAlgClaimThatIsAnArray(): void
+    {
+        $header  = rtrim(strtr(base64_encode(json_encode(['alg' => ['RS256'], 'typ' => 'JWT'])), '+/', '-_'), '=');
+        $payload = rtrim(strtr(base64_encode(json_encode(['sub' => 'u', 'iss' => 'https://example.zitadel.cloud', 'exp' => time() + 3600])), '+/', '-_'), '=');
+        $token   = "{$header}.{$payload}.fakesig";
+
+        self::assertNull($this->validator->validate($token));
+    }
+
+    // ---------------------------------------------------------------------------
+    // exp as float (attack pattern 7)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * `exp` encoded as a JSON float (e.g. 1234567890.0 or 9999999999.9) must be
+     * rejected. PHP's json_decode() returns a float for such values, and is_int()
+     * returns false for floats — including floats that happen to be whole numbers.
+     * An attacker cannot use a float exp to represent a past-expiry time as a future
+     * one, but we confirm rejection to ensure the type gate is solid.
+     */
+    public function testRejectsExpClaimThatIsAFloat(): void
+    {
+        // json_encode(1.0) produces "1.0" which json_decode returns as float
+        // We inject a raw JSON payload to guarantee the float encoding
+        $headerB64  = rtrim(strtr(base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT'])), '+/', '-_'), '=');
+        // Manually craft payload JSON with a float exp
+        $payloadJson = '{"sub":"u","iss":"https://example.zitadel.cloud","exp":' . (time() + 3600) . '.0,"iat":' . time() . '}';
+        $payloadB64  = rtrim(strtr(base64_encode($payloadJson), '+/', '-_'), '=');
+        $token       = "{$headerB64}.{$payloadB64}.fakesig";
+
+        self::assertNull($this->validator->validate($token));
+    }
+
+    // ---------------------------------------------------------------------------
+    // aud as nested array (attack pattern 8)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * When `aud` is a nested array such as `[["my-app"]]`, the inner arrays are not
+     * strings and must be filtered out by the is_string() gate before the
+     * array_intersect() comparison. The result is an empty actual-audience list,
+     * which cannot satisfy any configured audience requirement.
+     */
+    public function testRejectsNestedArrayAudience(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+            'aud' => [['my-app']],   // nested array — not a string
+        ]);
+
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client-id',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            audience:     'my-app',
+        );
+        self::assertNull((new TokenValidator($config, $mockCache))->validate($token));
+    }
+
+    // ---------------------------------------------------------------------------
+    // iss homoglyph (attack pattern 9)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * A token whose `iss` claim uses a visually-similar Unicode character in place
+     * of an ASCII character (e.g. Cyrillic 'е' instead of Latin 'e') must be
+     * rejected. The strict `!==` comparison used at step 12 is byte-for-byte, so
+     * different Unicode codepoints with the same visual appearance do not match.
+     */
+    public function testRejectsIssWithHomoglyphUnicode(): void
+    {
+        // Cyrillic small letter 'е' (U+0435) looks identical to Latin 'e' (U+0065)
+        // 'https://examplе.zitadel.cloud' with a Cyrillic е in 'example'
+        $homoglyphIss = "https://exampl\xd0\xb5.zitadel.cloud";  // Cyrillic е
+
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => $homoglyphIss,
+            'exp' => time() + 3600,
+            'iat' => time(),
+        ]);
+
+        // config->issuerUrl is the real ASCII URL, must not match the homoglyph
         self::assertNull((new TokenValidator($this->config, $mockCache))->validate($token));
     }
 

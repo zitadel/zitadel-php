@@ -141,9 +141,9 @@ final class PkceFlow
         /** @var string $body */
         if ($httpCode < 200 || $httpCode >= 300) {
             if (json_validate($body)) {
-                /** @var array<string, mixed> $errData */
+                /** @var array<string, mixed>|null $errData */
                 $errData = json_decode($body, true);
-                $desc    = is_array($errData) ? ($errData['error_description'] ?? $errData['error'] ?? "HTTP {$httpCode}") : "HTTP {$httpCode}";
+                $desc    = is_array($errData) ? (string) ($errData['error_description'] ?? $errData['error'] ?? "HTTP {$httpCode}") : "HTTP {$httpCode}";
                 throw new PkceException("[zitadel] Token exchange OAuth error: {$desc}");
             }
             throw new PkceException("[zitadel] Token exchange failed with HTTP {$httpCode}.");
@@ -153,11 +153,15 @@ final class PkceFlow
             throw new PkceException("[zitadel] Token exchange returned non-JSON response (HTTP {$httpCode}).");
         }
 
-        /** @var array<string, mixed> $data */
+        /** @var array<string, mixed>|null $data */
         $data = json_decode($body, true);
 
+        if (!is_array($data)) {
+            throw new PkceException("[zitadel] Token exchange returned non-object JSON response (HTTP {$httpCode}).");
+        }
+
         if (isset($data['error'])) {
-            $desc = $data['error_description'] ?? $data['error'];
+            $desc = (string) ($data['error_description'] ?? $data['error']);
             throw new PkceException("[zitadel] Token exchange OAuth error: {$desc}");
         }
 

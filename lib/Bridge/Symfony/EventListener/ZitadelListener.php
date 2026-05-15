@@ -119,8 +119,11 @@ readonly class ZitadelListener implements EventSubscriberInterface
         $token  = null;
         if ($bearer !== null && str_starts_with($bearer, 'Bearer ')) {
             $token = substr($bearer, 7);
-        } elseif ($request->cookies->has('__nextgen_auth')) {
-            $token = $request->cookies->get('__nextgen_auth');
+        } else {
+            $cookie = $request->cookies->get('__nextgen_auth');
+            if (is_string($cookie) && $cookie !== '') {
+                $token = $cookie;
+            }
         }
 
         $claims = $token !== null ? $this->validator->validate((string) $token) : null;
@@ -417,6 +420,23 @@ readonly class ZitadelListener implements EventSubscriberInterface
             false,
             'lax'
         ));
+
+        $secure = $request->isSecure();
+        foreach ($request->cookies->keys() as $name) {
+            if (str_starts_with((string) $name, '__nextgen') && (string) $name !== '__nextgen_auth') {
+                $response->headers->setCookie(new Cookie(
+                    (string) $name,
+                    '',
+                    1,
+                    '/',
+                    null,
+                    $secure,
+                    true,
+                    false,
+                    'lax'
+                ));
+            }
+        }
 
         return $response;
     }

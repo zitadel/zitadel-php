@@ -75,6 +75,7 @@ jobs:
     if: ${{ always() }}
     with:
       ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
+      test_artifact_name: test-results-php8.3
     secrets: inherit
 
   check-deps:
