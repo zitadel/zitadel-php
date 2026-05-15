@@ -17,17 +17,30 @@ class Services extends BaseServices
             return static::getSharedInstance('zitadelConfig');
         }
 
+        /** @var \Config\Zitadel $cfg */
+        $cfg = config('Zitadel');
+
         return new ZitadelConfig(
-            issuerUrl:         (string) ($_ENV['ZITADEL_ISSUER_URL']         ?? ''),
-            clientId:          (string) ($_ENV['ZITADEL_CLIENT_ID']          ?? ''),
-            redirectUri:       (string) ($_ENV['ZITADEL_REDIRECT_URI']       ?? ''),
-            cookieSecret:      (string) ($_ENV['ZITADEL_COOKIE_SECRET']      ?? ''),
-            protectAll:        true,
-            ignoredRoutes:     ['/health'],
-            jwksPath:          (string) ($_ENV['ZITADEL_JWKS_PATH']          ?? '/oauth/v2/keys'),
-            authorizationPath: (string) ($_ENV['ZITADEL_AUTHORIZATION_PATH'] ?? '/oauth/v2/authorize'),
-            tokenPath:         (string) ($_ENV['ZITADEL_TOKEN_PATH']         ?? '/oauth/v2/token'),
-            endSessionPath:    (string) ($_ENV['ZITADEL_END_SESSION_PATH']   ?? '/oidc/v1/end_session'),
+            issuerUrl:          $cfg->issuerUrl,
+            clientId:           $cfg->clientId,
+            redirectUri:        $cfg->redirectUri,
+            cookieSecret:       $cfg->cookieSecret,
+            protectAll:         $cfg->protectAll,
+            ignoredRoutes:      $cfg->ignoredRoutes,
+            protectedRoutes:    $cfg->protectedRoutes,
+            callbackPath:       $cfg->callbackPath,
+            logoutPath:         $cfg->logoutPath,
+            proxyPath:          $cfg->proxyPath,
+            postLoginRedirect:  $cfg->postLoginRedirect,
+            postLogoutRedirect: $cfg->postLogoutRedirect,
+            jwksPath:           $cfg->jwksPath,
+            authorizationPath:  $cfg->authorizationPath,
+            tokenPath:          $cfg->tokenPath,
+            endSessionPath:     $cfg->endSessionPath,
+            scopes:             $cfg->scopes,
+            clockSkewSeconds:   $cfg->clockSkewSeconds,
+            jwksTtlSeconds:     $cfg->jwksTtlSeconds,
+            httpTimeoutSeconds: $cfg->httpTimeoutSeconds,
         );
     }
 
@@ -37,8 +50,6 @@ class Services extends BaseServices
             return static::getSharedInstance('zitadelValidator');
         }
 
-        $config = static::zitadelConfig(false);
-
-        return new TokenValidator($config, new JwksCache());
+        return new TokenValidator(static::zitadelConfig(false), new JwksCache());
     }
 }
