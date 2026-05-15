@@ -12,7 +12,7 @@ Authorization Code + PKCE flow.
 ## Installation
 
 ```bash
-composer require zitadel/zitadel-php
+composer require zitadel/sdk
 ```
 
 ## Quick Start

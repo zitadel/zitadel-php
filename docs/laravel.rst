@@ -16,7 +16,7 @@ Installation
 
 .. code-block:: bash
 
-   composer require zitadel/zitadel-php
+   composer require zitadel/sdk
 
 :php:class:`Zitadel\Sdk\Bridge\Laravel\ZitadelServiceProvider` is auto-discovered by
 Laravel. No entry is needed in ``config/app.php``.

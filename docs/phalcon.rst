@@ -23,7 +23,7 @@ Installation
 
 .. code-block:: bash
 
-   composer require zitadel/zitadel-php
+   composer require zitadel/sdk
 
 
 Environment Variables

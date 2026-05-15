@@ -12,7 +12,7 @@ Installation
 
 .. code-block:: bash
 
-   composer require zitadel/zitadel-php nyholm/psr7
+   composer require zitadel/sdk nyholm/psr7
 
 
 Environment Variables

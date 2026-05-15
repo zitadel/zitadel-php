@@ -16,7 +16,7 @@ Installation
 
 .. code-block:: bash
 
-   composer require zitadel/zitadel-php
+   composer require zitadel/sdk
 
 Register the bundle in ``config/bundles.php``:
 

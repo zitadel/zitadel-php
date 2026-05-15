@@ -1,4 +1,4 @@
-# Integrating zitadel/zitadel-php
+# Integrating zitadel/sdk
 
 This SDK implements OAuth 2.0 PKCE authentication for PHP web applications.
 It handles the full login/logout lifecycle, validates JWTs issued by Zitadel,
@@ -102,7 +102,7 @@ class HomeController { … }
 ### Install
 
 ```bash
-composer require zitadel/zitadel-php
+composer require zitadel/sdk
 ```
 
 The `ZitadelServiceProvider` is auto-discovered. No manual registration
@@ -191,7 +191,7 @@ class ProfileController extends Controller
 ### Install
 
 ```bash
-composer require zitadel/zitadel-php
+composer require zitadel/sdk
 ```
 
 ### Register bundle — `config/bundles.php`
@@ -275,7 +275,7 @@ access needed.
 ### Install
 
 ```bash
-composer require zitadel/zitadel-php
+composer require zitadel/sdk
 ```
 
 Phalcon requires the `phalcon` PHP extension. It is **not** installable via
@@ -398,7 +398,7 @@ final class ProfileController extends Controller
 ### Install
 
 ```bash
-composer require zitadel/zitadel-php
+composer require zitadel/sdk
 ```
 
 ### Configure DI — `config/web/di.php`
@@ -506,7 +506,7 @@ final readonly class ProfileAction
 ### Install
 
 ```bash
-composer require zitadel/zitadel-php
+composer require zitadel/sdk
 ```
 
 CI4 loads `.env` natively — no `vlucas/phpdotenv` required. Use CI4's

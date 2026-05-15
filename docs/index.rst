@@ -8,7 +8,7 @@ no custom routes required in your application.
 
 .. code-block:: bash
 
-   composer require zitadel/zitadel-php
+   composer require zitadel/sdk
 
 
 How It Works
@@ -72,7 +72,7 @@ Quick Start
 
 .. code-block:: bash
 
-   composer require zitadel/zitadel-php
+   composer require zitadel/sdk
 
 **2. Generate a cookie secret**
 

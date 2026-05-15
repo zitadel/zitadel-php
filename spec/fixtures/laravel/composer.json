@@ -1,12 +1,12 @@
 {
-    "name": "zitadel/zitadel-php-fixture-laravel",
+    "name": "zitadel/sdk-fixture-laravel",
     "description": "Laravel fixture app for Zitadel PHP SDK integration specs",
     "type": "project",
     "license": "Apache-2.0",
     "require": {
         "php": "^8.3",
         "laravel/framework": "^13.0",
-        "zitadel/zitadel-php": "*@dev"
+        "zitadel/sdk": "*@dev"
     },
     "require-dev": {
         "vlucas/phpdotenv": "^5.6"

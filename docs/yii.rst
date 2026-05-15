@@ -18,7 +18,7 @@ Installation
 
 .. code-block:: bash
 
-   composer require zitadel/zitadel-php yiisoft/router yiisoft/router-fastroute nyholm/psr7
+   composer require zitadel/sdk yiisoft/router yiisoft/router-fastroute nyholm/psr7
 
 
 Environment Variables
