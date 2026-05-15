@@ -57,4 +57,61 @@ final class ZitadelConfigTest extends TestCase
             cookieSecret: bin2hex(random_bytes(32)),
         );
     }
+
+    // ---------------------------------------------------------------------------
+    // proxyPath validation
+    // ---------------------------------------------------------------------------
+
+    public function testDefaultProxyPathIsNextgen(): void
+    {
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+        );
+
+        self::assertSame('/__nextgen', $config->proxyPath);
+    }
+
+    public function testCustomProxyPathIsAccepted(): void
+    {
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            proxyPath:    '/auth-proxy',
+        );
+
+        self::assertSame('/auth-proxy', $config->proxyPath);
+    }
+
+    public function testThrowsForAbsoluteProxyPath(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/proxyPath/i');
+
+        new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            proxyPath:    'https://evil.com',
+        );
+    }
+
+    public function testThrowsForProtocolRelativeProxyPath(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/proxyPath/i');
+
+        new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            proxyPath:    '//evil.com',
+        );
+    }
 }

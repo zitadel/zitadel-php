@@ -158,6 +158,10 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
             $headers[$name] = implode(', ', $values);
         }
 
+        // Mirror Next.js/Nuxt behavior: consider X-Forwarded-Proto so that session
+        // cookies get the Secure flag even when TLS is terminated at a load balancer.
+        $cookiesSecure = $isSecure || strtolower($request->getHeaderLine('X-Forwarded-Proto')) === 'https';
+
         $method     = $request->getMethod();
         $hasBody    = !in_array(strtoupper($method), ['GET', 'HEAD'], true);
         $body       = $hasBody ? (string) $request->getBody() : '';
@@ -195,7 +199,7 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         foreach ($result['setCookies'] as $cookie) {
             $response = $response->withAddedHeader(
                 'Set-Cookie',
-                HttpProxy::upgradeSessionCookie($cookie, $isSecure),
+                HttpProxy::upgradeSessionCookie($cookie, $cookiesSecure),
             );
         }
 

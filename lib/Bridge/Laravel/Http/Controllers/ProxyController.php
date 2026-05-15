@@ -55,7 +55,10 @@ readonly class ProxyController
         $remoteAddr = (string) ($request->server->get('REMOTE_ADDR') ?? '');
         $host       = (string) ($request->headers->get('Host') ?: $request->getHost());
         $proto      = $request->getScheme();
-        $isSecure   = $request->isSecure();
+        // Mirror Next.js/Nuxt behavior: consider X-Forwarded-Proto so that session
+        // cookies get the Secure flag even when TLS is terminated at a load balancer.
+        $isSecure   = $request->isSecure()
+            || strtolower((string) ($request->headers->get('X-Forwarded-Proto') ?? '')) === 'https';
 
         try {
             $result = HttpProxy::forward(

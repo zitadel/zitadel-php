@@ -190,17 +190,26 @@ final readonly class ZitadelFilter implements FilterInterface
         $target    = $this->config->issuerUrl . $suffix . ($query !== '' ? '?' . $query : '');
 
         $headers = [];
-        foreach ($request->headers() as $name => $value) {
-            $headers[$name] = is_array($value) ? implode(', ', $value) : (string) $value;
+        foreach ($_SERVER as $key => $value) {
+            if (str_starts_with($key, 'HTTP_')) {
+                $name           = str_replace('_', '-', substr($key, 5));
+                $headers[$name] = (string) $value;
+            }
+        }
+        if (isset($_SERVER['CONTENT_TYPE'])) {
+            $headers['Content-Type'] = (string) $_SERVER['CONTENT_TYPE'];
         }
 
         $method     = $request->getMethod();
         $hasBody    = !in_array(strtoupper($method), ['GET', 'HEAD'], true);
-        $body       = $hasBody ? (string) $request->getBody() : '';
+        $body       = $hasBody ? (string) file_get_contents('php://input') : '';
         $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
-        $host       = $request->getHeaderLine('Host') ?: $request->getUri()->getHost();
+        $host       = $_SERVER['HTTP_HOST'] ?? $request->getUri()->getHost();
         $proto      = $request->getUri()->getScheme();
-        $isSecure   = $request->isSecure();
+        // Mirror Next.js/Nuxt behavior: consider X-Forwarded-Proto so that session
+        // cookies get the Secure flag even when TLS is terminated at a load balancer.
+        $isSecure   = $request->isSecure()
+            || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
 
         try {
             $result = HttpProxy::forward(

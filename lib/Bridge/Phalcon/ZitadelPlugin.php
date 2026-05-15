@@ -256,7 +256,10 @@ readonly class ZitadelPlugin
         $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
         $host       = $_SERVER['HTTP_HOST'] ?? $request->getServerName();
         $proto      = $request->isSecure() ? 'https' : 'http';
-        $isSecure   = $request->isSecure();
+        // Mirror Next.js/Nuxt behavior: consider X-Forwarded-Proto so that session
+        // cookies get the Secure flag even when TLS is terminated at a load balancer.
+        $isSecure   = $request->isSecure()
+            || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
 
         try {
             $result = HttpProxy::forward(
