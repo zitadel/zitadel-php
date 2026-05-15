@@ -1,5 +1,5 @@
 {
-    "name": "zitadel/zitadel-php",
+    "name": "zitadel/sdk",
     "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
     "keywords": ["auth", "oidc", "pkce", "middleware", "zitadel", "zitadel-sdk"],
     "homepage": "https://github.com/zitadel/zitadel-php",
