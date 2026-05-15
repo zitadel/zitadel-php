@@ -327,18 +327,21 @@ readonly class ZitadelPlugin
      */
     private function handleCallback(Request $request, DiInterface $di): Response
     {
+        // Determine Secure flag early — needed for PKCE cookie deletion on every error exit,
+        // including the first two paths where the cookie is absent or tampered.
+        $secure = $request->isSecure();
+
         $pkceValue = $_COOKIE['__nextgen_pkce'] ?? null;
         if (!is_string($pkceValue) || $pkceValue === '') {
+            header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
             return $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.');
         }
 
         $pkce = PkceStateCookie::decrypt($pkceValue, $this->config->cookieSecret);
         if ($pkce === null) {
+            header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
             return $this->badRequest('Authentication failed — PKCE state cookie invalid. Please try signing in again.');
         }
-
-        // Determine Secure flag early — needed for PKCE cookie deletion on any error exit.
-        $secure = $request->isSecure();
 
         $state = $request->getQuery('state');
         if (!hash_equals($pkce['state'], (string) $state)) {

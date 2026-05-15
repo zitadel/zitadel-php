@@ -317,12 +317,17 @@ readonly class ZitadelListener implements EventSubscriberInterface
      */
     private function handleCallback(\Symfony\Component\HttpFoundation\Request $request): Response
     {
+        // Build the deletion cookie upfront — needed on every error path, including
+        // the first two exits where the cookie is absent or tampered (RFC 6265bis
+        // requires the Secure flag to match the original cookie to delete it).
+        $pkceDeleteCookie = new Cookie('__nextgen_pkce', '', 1, '/', null, $request->isSecure(), true, false, 'lax');
+
         $pkceValue = $request->cookies->get('__nextgen_pkce');
         if (!is_string($pkceValue) || $pkceValue === '') {
-            return $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.');
+            $response = $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.');
+            $response->headers->setCookie($pkceDeleteCookie);
+            return $response;
         }
-
-        $pkceDeleteCookie = new Cookie('__nextgen_pkce', '', 1, '/', null, $request->isSecure(), true, false, 'lax');
 
         $pkce = PkceStateCookie::decrypt($pkceValue, $this->config->cookieSecret);
         if ($pkce === null) {
