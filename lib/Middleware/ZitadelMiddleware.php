@@ -79,6 +79,8 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
      * @param ServerRequestInterface  $request The incoming PSR-7 server request.
      * @param RequestHandlerInterface $handler The next handler in the PSR-15 pipeline.
      * @return ResponseInterface The HTTP response.
+     * @throws \InvalidArgumentException When the cookie secret is invalid (propagated from
+     *                                   {@see PkceStateCookie::encrypt()} on protected-route redirect).
      */
     #[\Override]
     public function process(

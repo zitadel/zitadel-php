@@ -223,25 +223,41 @@ readonly class ZitadelConfig
         }
     }
 
-    /** Returns the JWKS endpoint URI. */
+    /**
+     * Returns the JWKS endpoint URI.
+     *
+     * @return string Absolute URL for the JWKS public-key set endpoint.
+     */
     public function jwksUri(): string
     {
         return rtrim($this->issuerUrl, '/') . $this->jwksPath;
     }
 
-    /** Returns the OAuth 2.0 authorization endpoint URI. */
+    /**
+     * Returns the OAuth 2.0 authorization endpoint URI.
+     *
+     * @return string Absolute URL for the authorization endpoint.
+     */
     public function authorizationEndpoint(): string
     {
         return rtrim($this->issuerUrl, '/') . $this->authorizationPath;
     }
 
-    /** Returns the OAuth 2.0 token endpoint URI. */
+    /**
+     * Returns the OAuth 2.0 token endpoint URI.
+     *
+     * @return string Absolute URL for the token endpoint.
+     */
     public function tokenEndpoint(): string
     {
         return rtrim($this->issuerUrl, '/') . $this->tokenPath;
     }
 
-    /** Returns the OIDC end-session endpoint URI for single sign-out. */
+    /**
+     * Returns the OIDC end-session endpoint URI for single sign-out.
+     *
+     * @return string Absolute URL for the end-session endpoint.
+     */
     public function endSessionEndpoint(): string
     {
         return rtrim($this->issuerUrl, '/') . $this->endSessionPath;
@@ -263,6 +279,8 @@ readonly class ZitadelConfig
      *    → http://localhost:3000
      *  - redirectUri=https://myapp.com/zitadel/callback, postLogoutRedirect=/bye
      *    → https://myapp.com/bye
+     *
+     * @return string Absolute URI to register in Zitadel as the post-logout redirect.
      */
     public function postLogoutAbsoluteUri(): string
     {

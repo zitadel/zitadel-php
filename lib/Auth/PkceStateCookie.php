@@ -134,9 +134,10 @@ final class PkceStateCookie
      * @param string            $verifier PKCE code verifier.
      * @param string            $state    Random CSRF state value.
      * @param string            $next     Original URL the user was navigating to.
-     * @param string            $secret   Cookie encryption key.
+     * @param string            $secret   Cookie encryption key (64-char hex string → 32 raw bytes).
      * @param bool              $secure   Whether to set the Secure flag.
      * @return ResponseInterface New response with `Set-Cookie` header added.
+     * @throws \InvalidArgumentException When `$secret` is not a valid 64-character hex string.
      */
     public static function write(
         ResponseInterface $response,
@@ -178,8 +179,11 @@ final class PkceStateCookie
     /**
      * Returns a PSR-7 response with the `__nextgen_pkce` cookie deleted.
      *
+     * Sets `Max-Age=0` so browsers expire the cookie immediately. Safe to call
+     * even when the cookie is not present.
+     *
      * @param ResponseInterface $response PSR-7 response to add the deletion header to.
-     * @return ResponseInterface New response with deletion `Set-Cookie` header.
+     * @return ResponseInterface New response with an expiring `Set-Cookie` header for `__nextgen_pkce`.
      */
     public static function delete(ResponseInterface $response): ResponseInterface
     {

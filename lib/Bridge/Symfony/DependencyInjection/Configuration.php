@@ -14,6 +14,11 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
  */
 readonly class Configuration implements ConfigurationInterface
 {
+    /**
+     * Returns the configuration tree builder for the `zitadel` config key.
+     *
+     * @return TreeBuilder The Symfony configuration tree builder.
+     */
     #[\Override]
     public function getConfigTreeBuilder(): TreeBuilder
     {

@@ -60,6 +60,12 @@ use Zitadel\Sdk\Config\ZitadelConfig;
  */
 final readonly class ZitadelMiddleware implements MiddlewareInterface
 {
+    /**
+     * @param ZitadelConfig            $config          SDK configuration (issuer, cookie secret, route paths).
+     * @param TokenValidator           $validator       JWT validator backed by the shared JWKS cache.
+     * @param ResponseFactoryInterface $responseFactory PSR-17 factory for creating redirect and error responses.
+     * @param UrlMatcherInterface      $urlMatcher      Yii URL matcher used for `#[AllowAnonymous]` reflection.
+     */
     public function __construct(
         private ZitadelConfig            $config,
         private TokenValidator           $validator,
@@ -68,6 +74,19 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
     ) {
     }
 
+    /**
+     * Processes an incoming server request and returns a response.
+     *
+     * Intercepts the full Zitadel authentication lifecycle: proxy, callback, logout, ignored
+     * routes, token validation, `#[AllowAnonymous]` reflection via Yii's URL matcher,
+     * protected-route redirect, and stale-cookie cleanup for public unauthenticated requests.
+     *
+     * @param ServerRequestInterface  $request The incoming PSR-7 server request.
+     * @param RequestHandlerInterface $handler The next handler in the PSR-15 pipeline.
+     * @return ResponseInterface The HTTP response.
+     * @throws \InvalidArgumentException When the cookie secret is invalid (propagated from
+     *                                   {@see PkceStateCookie::encrypt()} on protected-route redirect).
+     */
     #[\Override]
     public function process(
         ServerRequestInterface  $request,

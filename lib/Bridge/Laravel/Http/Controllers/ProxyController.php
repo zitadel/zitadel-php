@@ -22,6 +22,9 @@ use Zitadel\Sdk\Config\ZitadelConfig;
  */
 readonly class ProxyController
 {
+    /**
+     * @param ZitadelConfig $config SDK configuration (issuer URL, proxy path, timeouts).
+     */
     public function __construct(
         private ZitadelConfig $config,
     ) {

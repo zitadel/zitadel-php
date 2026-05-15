@@ -15,6 +15,12 @@ namespace Zitadel\Sdk\Exception;
  */
 final class TokenValidationException extends \RuntimeException
 {
+    /**
+     * @param string          $message  Human-readable description of the validation failure.
+     *                                  Should be prefixed with `[zitadel]` for easy log grepping.
+     * @param int             $code     Optional numeric error code (defaults to 0).
+     * @param \Throwable|null $previous Optional underlying cause.
+     */
     public function __construct(string $message, int $code = 0, ?\Throwable $previous = null)
     {
         parent::__construct($message, $code, $previous);

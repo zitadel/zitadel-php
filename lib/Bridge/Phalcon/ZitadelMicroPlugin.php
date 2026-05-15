@@ -41,6 +41,10 @@ use Zitadel\Sdk\Exception\PkceException;
  */
 readonly class ZitadelMicroPlugin implements MiddlewareInterface
 {
+    /**
+     * @param ZitadelConfig  $config    SDK configuration (issuer, cookie secret, route paths).
+     * @param TokenValidator $validator JWT validator backed by the shared JWKS cache.
+     */
     public function __construct(
         private ZitadelConfig  $config,
         private TokenValidator $validator,
@@ -131,7 +135,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
                 $this->config->cookieSecret
             );
 
-            header($this->buildCookieHeader('__nextgen_pkce', $cookie, time() + 600, $request->isSecure()), false);
+            header($this->buildCookieHeader('__nextgen_pkce', $cookie, 600, $request->isSecure()), false);
 
             $response = new Response();
             $response->redirect($authUrl, true);
@@ -145,7 +149,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
         $di->set('zitadel.claims', static fn () => null);
         foreach (array_keys($_COOKIE) as $name) {
             if (str_starts_with((string) $name, '__nextgen')) {
-                header($this->buildCookieHeader((string) $name, '', 1, $request->isSecure()), false);
+                header($this->buildCookieHeader((string) $name, '', 0, $request->isSecure()), false);
             }
         }
 
@@ -255,41 +259,41 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
 
         $state = $request->getQuery('state');
         if (!hash_equals($pkce['state'], (string) $state)) {
-            header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
+            header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
             return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
         }
 
         $code = $request->getQuery('code');
         if (!is_string($code) || $code === '') {
             $oauthError = $request->getQuery('error_description') ?? $request->getQuery('error') ?? 'Missing code';
-            header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
+            header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
             return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
         }
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (PkceException $e) {
-            header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
+            header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
             return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);
         if ($tokenToValidate === null) {
-            header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
+            header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
             return $this->badRequest('Authentication failed — no usable token in response.');
         }
 
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
-            header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
+            header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
         }
 
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
         $maxAge = max(0, $claims->exp - time());
 
-        header($this->buildCookieHeader('__nextgen_auth', $tokenToValidate, time() + $maxAge, $secure), false);
-        header($this->buildCookieHeader('__nextgen_pkce', '', 1, $secure), false);
+        header($this->buildCookieHeader('__nextgen_auth', $tokenToValidate, $maxAge, $secure), false);
+        header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
 
         $response = new Response();
         $response->redirect($next, true);
@@ -305,7 +309,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
      */
     private function handleLogout(Request $request): Response
     {
-        header($this->buildCookieHeader('__nextgen_auth', '', 1, $request->isSecure()), false);
+        header($this->buildCookieHeader('__nextgen_auth', '', 0, $request->isSecure()), false);
 
         $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);
         $response = new Response();
@@ -377,15 +381,15 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
      *
      * @param string $name   Cookie name.
      * @param string $value  Cookie value (URL-encoded before inclusion).
-     * @param int    $expire Unix timestamp for the `Expires` attribute.
+     * @param int    $maxAge Max-Age in seconds. Use 0 to delete the cookie.
      * @param bool   $secure Whether to add the `Secure` attribute.
      * @return string A complete `Set-Cookie: ...` header string.
      */
-    private function buildCookieHeader(string $name, string $value, int $expire, bool $secure): string
+    private function buildCookieHeader(string $name, string $value, int $maxAge, bool $secure): string
     {
         $parts = [
             $name . '=' . urlencode($value),
-            'Expires=' . gmdate('D, d M Y H:i:s T', $expire),
+            'Max-Age=' . $maxAge,
             'Path=/',
             'SameSite=Lax',
             'HttpOnly',

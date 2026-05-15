@@ -47,6 +47,10 @@ readonly class ZitadelListener implements EventSubscriberInterface
     private const string PENDING_REDIRECT_ATTR    = '_zitadel_pending_redirect';
     private const string CLEAR_STALE_COOKIES_ATTR = '_zitadel_clear_stale_cookies';
 
+    /**
+     * @param ZitadelConfig  $config    SDK configuration (issuer, cookie secret, route paths).
+     * @param TokenValidator $validator JWT validator backed by the shared JWKS cache.
+     */
     public function __construct(
         private ZitadelConfig  $config,
         private TokenValidator $validator,
@@ -315,12 +319,14 @@ readonly class ZitadelListener implements EventSubscriberInterface
             return $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.');
         }
 
+        $pkceDeleteCookie = new Cookie('__nextgen_pkce', '', 1, '/', null, $request->isSecure(), true, false, 'lax');
+
         $pkce = PkceStateCookie::decrypt($pkceValue, $this->config->cookieSecret);
         if ($pkce === null) {
-            return $this->badRequest('Authentication failed — PKCE state cookie invalid. Please try signing in again.');
+            $response = $this->badRequest('Authentication failed — PKCE state cookie invalid. Please try signing in again.');
+            $response->headers->setCookie($pkceDeleteCookie);
+            return $response;
         }
-
-        $pkceDeleteCookie = new Cookie('__nextgen_pkce', '', 1, '/', null, $request->isSecure(), true, false, 'lax');
 
         $state = $request->query->get('state');
         if (!hash_equals($pkce['state'], (string) $state)) {

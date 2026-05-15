@@ -30,8 +30,8 @@ final class ZitadelExtension extends Extension
     /**
      * Processes the bundle configuration and registers all Zitadel services.
      *
-     * @param array<array<mixed>> $configs   Merged bundle configuration arrays.
-     * @param ContainerBuilder    $container The Symfony DI container being built.
+     * @param array<int, array<string, mixed>> $configs   Merged bundle configuration arrays (one per config file).
+     * @param ContainerBuilder                 $container The Symfony DI container being built.
      */
     #[\Override]
     public function load(array $configs, ContainerBuilder $container): void
@@ -51,6 +51,7 @@ final class ZitadelExtension extends Extension
 
         $container->register(ZitadelConfig::class, ZitadelConfig::class)
             ->setShared(true)
+            ->setPublic(false)
             ->setArguments([
                 $config['issuer_url'],
                 $config['client_id'],
@@ -78,21 +79,26 @@ final class ZitadelExtension extends Extension
             ]);
 
         $container->register(JwksCache::class, JwksCache::class)
-            ->setShared(true);
+            ->setShared(true)
+            ->setPublic(false);
 
-        $container->setAlias(JwksCacheInterface::class, JwksCache::class);
+        $container->setAlias(JwksCacheInterface::class, JwksCache::class)
+            ->setPublic(false);
 
         $container->register(TokenValidator::class, TokenValidator::class)
             ->setShared(true)
+            ->setPublic(false)
             ->setAutowired(true);
 
         $container->register(ZitadelListener::class, ZitadelListener::class)
             ->setShared(true)
+            ->setPublic(false)
             ->setAutowired(true)
             ->addTag('kernel.event_subscriber');
 
         $container->register(ClaimsValueResolver::class, ClaimsValueResolver::class)
             ->setShared(true)
+            ->setPublic(false)
             ->addTag('controller.argument_value_resolver', ['priority' => 50]);
     }
 }

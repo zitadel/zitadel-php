@@ -117,7 +117,11 @@ class Zitadel extends BaseConfig
 
     // ── Tuning ────────────────────────────────────────────────────────────────
 
-    /** OAuth 2.0 scopes requested during authorization. */
+    /**
+     * OAuth 2.0 scopes requested during authorization.
+     *
+     * @var string[]
+     */
     public array $scopes = ['openid', 'profile', 'email'];
 
     /**
@@ -154,6 +158,13 @@ class Zitadel extends BaseConfig
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Populates all properties from environment variables via CI4's `env()` helper.
+     *
+     * Each setting falls back to a sensible default when the environment variable is
+     * absent, so only `ZITADEL_ISSUER_URL`, `ZITADEL_CLIENT_ID`, `ZITADEL_REDIRECT_URI`,
+     * and `ZITADEL_COOKIE_SECRET` are strictly required at runtime.
+     */
     public function __construct()
     {
         $this->issuerUrl         = (string) env('ZITADEL_ISSUER_URL', '');

@@ -96,6 +96,7 @@ final class ZitadelServiceProvider extends ServiceProvider
      * Bootstraps routes, middleware, config publishing, and the `zitadel` auth guard.
      *
      * @param Router $router The Illuminate router used to register the web middleware group entry.
+     * @return void
      */
     public function boot(Router $router): void
     {

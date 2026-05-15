@@ -45,51 +45,63 @@ readonly class CallbackController
      */
     public function __invoke(Request $request): RedirectResponse|Response
     {
+        // Determine the Secure flag upfront — needed on every error path so that
+        // the PKCE cookie deletion header matches the Secure attribute that was set
+        // when the cookie was created. Browsers refuse to delete a Secure-flagged
+        // cookie via a non-Secure Set-Cookie directive (RFC 6265bis §5.4).
+        $secure = $request->isSecure();
+
+        // Build a reusable deletion cookie for __nextgen_pkce. Using cookie() with
+        // an explicit $secure argument guarantees the flag is correct regardless of
+        // the CookieJar's global default (which cookie()->forget() would inherit).
+        $deletePkce = cookie('__nextgen_pkce', '', -2628000, '/', null, $secure, true, false, 'lax');
+
         $pkceValue = $request->cookie('__nextgen_pkce');
         if (!is_string($pkceValue)) {
-            return $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.');
+            return $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.')
+                ->withCookie($deletePkce);
         }
 
         $pkce = PkceStateCookie::decrypt($pkceValue, $this->config->cookieSecret);
         if ($pkce === null) {
-            return $this->badRequest('Authentication failed — PKCE state cookie invalid. Please try signing in again.');
+            return $this->badRequest('Authentication failed — PKCE state cookie invalid. Please try signing in again.')
+                ->withCookie($deletePkce);
         }
 
         $state = $request->query('state');
         if (!hash_equals($pkce['state'], (string) $state)) {
             return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.')
-                ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
+                ->withCookie($deletePkce);
         }
 
         $code = $request->query('code');
         if (!is_string($code) || $code === '') {
             $oauthError = $request->query('error_description') ?? $request->query('error') ?? 'Missing code';
             return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.")
-                ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
+                ->withCookie($deletePkce);
         }
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (PkceException $e) {
             return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.')
-                ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
+                ->withCookie($deletePkce);
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);
         if ($tokenToValidate === null) {
             return $this->badRequest('Authentication failed — no usable token in response.')
-                ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
+                ->withCookie($deletePkce);
         }
 
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.')
-                ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
+                ->withCookie($deletePkce);
         }
 
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
         $maxAge = max(0, $claims->exp - time());
-        $secure = $request->isSecure();
 
         // Delete the PKCE state cookie and set the auth token cookie.
         // Both withCookie/cookie calls return a new response — chain them.
@@ -105,7 +117,7 @@ readonly class CallbackController
                 false,
                 'lax'
             )
-            ->withCookie(cookie()->forget('__nextgen_pkce', '/'));
+            ->withCookie($deletePkce);
     }
 
     /**

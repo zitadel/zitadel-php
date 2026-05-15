@@ -27,6 +27,8 @@ final class PkceFlow
      * Uses `random_bytes(32)` → base64url-encoded without padding → exactly 43
      * characters, satisfying RFC 7636 §4.1 (43–128 characters, unreserved set).
      * 32 bytes = 256 bits of entropy.
+     *
+     * @return string 43-character base64url-encoded code verifier.
      */
     public static function generateCodeVerifier(): string
     {
@@ -38,6 +40,8 @@ final class PkceFlow
      *
      * Uses `random_bytes(32)` → base64url-encoded → 43 characters, 256-bit entropy.
      * Used to prevent CSRF attacks in the authorization code flow.
+     *
+     * @return string 43-character base64url-encoded state value.
      */
     public static function generateState(): string
     {
@@ -50,6 +54,7 @@ final class PkceFlow
      * Computes `BASE64URL(SHA-256(ASCII(code_verifier)))` per RFC 7636 §4.2.
      *
      * @param string $verifier Code verifier produced by {@see generateCodeVerifier()}.
+     * @return string Base64url-encoded SHA-256 hash of the verifier.
      */
     public static function generateCodeChallenge(string $verifier): string
     {
@@ -65,6 +70,7 @@ final class PkceFlow
      * @param ZitadelConfig $config    Middleware configuration.
      * @param string        $challenge Code challenge from {@see generateCodeChallenge()}.
      * @param string        $state     Random CSRF state value.
+     * @return string Full authorization endpoint URL with query parameters appended.
      */
     public static function buildAuthorizationUrl(
         ZitadelConfig $config,

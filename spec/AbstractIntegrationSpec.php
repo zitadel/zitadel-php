@@ -490,6 +490,55 @@ abstract class AbstractIntegrationSpec extends TestCase
         self::assertNotEmpty($apiResponse['sub'], 'Authenticated response must include a non-empty sub');
     }
 
+    public function testCallbackWithoutPkceCookieReturnsBadRequest(): void
+    {
+        // Hitting the callback without a PKCE state cookie must return 400.
+        // This exercises the first guard in every bridge's handleCallback() method.
+        $ch = curl_init($this->baseUrl() . '/zitadel/callback?code=some_code&state=some_state');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_FOLLOWLOCATION => false,
+        ]);
+        $body     = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        self::assertNotFalse($body, 'Callback endpoint must be reachable');
+        self::assertSame(400, $httpCode, 'Callback without PKCE cookie must return 400 Bad Request');
+        self::assertStringContainsString(
+            'Authentication Error',
+            (string) $body,
+            'Error response must contain the "Authentication Error" heading',
+        );
+    }
+
+    public function testCallbackWithOAuthErrorReturnsBadRequest(): void
+    {
+        // Hitting the callback with an OAuth error param but no PKCE cookie must return 400.
+        // The PKCE cookie check fires before the error-description check, so the response
+        // reflects the missing-cookie failure path, not the OAuth error. This verifies the
+        // callback route is wired and rejects the request rather than crashing.
+        $ch = curl_init(
+            $this->baseUrl() . '/zitadel/callback?' . http_build_query([
+                'error'             => 'access_denied',
+                'error_description' => 'User denied access',
+            ])
+        );
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_FOLLOWLOCATION => false,
+        ]);
+        $body     = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        self::assertNotFalse($body, 'Callback endpoint must be reachable with an OAuth error parameter');
+        self::assertSame(400, $httpCode, 'Callback with OAuth error and no PKCE cookie must return 400');
+        self::assertStringContainsString('Authentication Error', (string) $body);
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     /** Returns a fresh isolated browser context (clean cookies) for a single test. */
