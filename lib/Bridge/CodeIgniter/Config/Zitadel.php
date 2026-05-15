@@ -129,19 +129,19 @@ class Zitadel extends BaseConfig
 
     public function __construct()
     {
-        $this->issuerUrl         = (string) env('ZITADEL_ISSUER_URL',         '');
-        $this->clientId          = (string) env('ZITADEL_CLIENT_ID',          '');
-        $this->redirectUri       = (string) env('ZITADEL_REDIRECT_URI',       '');
-        $this->cookieSecret      = (string) env('ZITADEL_COOKIE_SECRET',      '');
-        $this->callbackPath      = (string) env('ZITADEL_CALLBACK_PATH',      '/zitadel/callback');
-        $this->logoutPath        = (string) env('ZITADEL_LOGOUT_PATH',        '/zitadel/logout');
-        $this->proxyPath         = (string) env('ZITADEL_PROXY_PATH',         '/__nextgen');
-        $this->postLoginRedirect = (string) env('ZITADEL_POST_LOGIN_URL',     '/');
-        $this->postLogoutRedirect = (string) env('ZITADEL_POST_LOGOUT_URL',   '/');
-        $this->jwksPath          = (string) env('ZITADEL_JWKS_PATH',          '/oauth/v2/keys');
+        $this->issuerUrl         = (string) env('ZITADEL_ISSUER_URL', '');
+        $this->clientId          = (string) env('ZITADEL_CLIENT_ID', '');
+        $this->redirectUri       = (string) env('ZITADEL_REDIRECT_URI', '');
+        $this->cookieSecret      = (string) env('ZITADEL_COOKIE_SECRET', '');
+        $this->callbackPath      = (string) env('ZITADEL_CALLBACK_PATH', '/zitadel/callback');
+        $this->logoutPath        = (string) env('ZITADEL_LOGOUT_PATH', '/zitadel/logout');
+        $this->proxyPath         = (string) env('ZITADEL_PROXY_PATH', '/__nextgen');
+        $this->postLoginRedirect = (string) env('ZITADEL_POST_LOGIN_URL', '/');
+        $this->postLogoutRedirect = (string) env('ZITADEL_POST_LOGOUT_URL', '/');
+        $this->jwksPath          = (string) env('ZITADEL_JWKS_PATH', '/oauth/v2/keys');
         $this->authorizationPath = (string) env('ZITADEL_AUTHORIZATION_PATH', '/oauth/v2/authorize');
-        $this->tokenPath         = (string) env('ZITADEL_TOKEN_PATH',         '/oauth/v2/token');
-        $this->endSessionPath    = (string) env('ZITADEL_END_SESSION_PATH',   '/oidc/v1/end_session');
+        $this->tokenPath         = (string) env('ZITADEL_TOKEN_PATH', '/oauth/v2/token');
+        $this->endSessionPath    = (string) env('ZITADEL_END_SESSION_PATH', '/oidc/v1/end_session');
 
         parent::__construct();
     }
