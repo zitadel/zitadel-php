@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "925af38b6b4fcebb746f208cb017deef",
+    "content-hash": "b5c7370ffa394bf283b70b779a1ce16d",
     "packages": [
         {
             "name": "graham-campbell/result-type",
@@ -1674,12 +1674,12 @@
             "time": "2025-12-13T11:58:56+00:00"
         },
         {
-            "name": "zitadel/zitadel-php",
-            "version": "dev-master",
+            "name": "zitadel/sdk",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "../../..",
-                "reference": "66cd227c06e74fefa5490d235d4d1b1a7f8dfd75"
+                "reference": "67b1c3325378494a6b250965baac478bfbd69a42"
             },
             "require": {
                 "ext-curl": "*",
@@ -1789,7 +1789,7 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "zitadel/zitadel-php": 20
+        "zitadel/sdk": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

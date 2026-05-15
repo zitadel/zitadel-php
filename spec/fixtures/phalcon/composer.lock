@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "540856a8282baf2ecff15f95700772f0",
+    "content-hash": "ab20d3800a757b68cbc1ec4e0705ba63",
     "packages": [
         {
             "name": "graham-campbell/result-type",
@@ -276,12 +276,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/phalcon/phalcon.git",
-                "reference": "634a99e17197bfeb1541c756726665988abaf55b"
+                "reference": "aedf6cf449309705df663f73cd1eee721d281e2a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phalcon/phalcon/zipball/634a99e17197bfeb1541c756726665988abaf55b",
-                "reference": "634a99e17197bfeb1541c756726665988abaf55b",
+                "url": "https://api.github.com/repos/phalcon/phalcon/zipball/aedf6cf449309705df663f73cd1eee721d281e2a",
+                "reference": "aedf6cf449309705df663f73cd1eee721d281e2a",
                 "shasum": ""
             },
             "require": {
@@ -361,7 +361,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2026-05-08T23:23:23+00:00"
+            "time": "2026-05-15T03:29:24+00:00"
         },
         {
             "name": "phalcon/traits",
@@ -1268,12 +1268,12 @@
             "time": "2025-12-27T19:49:13+00:00"
         },
         {
-            "name": "zitadel/zitadel-php",
-            "version": "dev-master",
+            "name": "zitadel/sdk",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "../../..",
-                "reference": "16aa3fc69609322c5d0ec31ee4d6d5bab9dc9d46"
+                "reference": "67b1c3325378494a6b250965baac478bfbd69a42"
             },
             "require": {
                 "ext-curl": "*",
@@ -1300,10 +1300,10 @@
             },
             "suggest": {
                 "codeigniter4/framework": "^4.0 — enables ZitadelFilter",
-                "laravel/framework": "^10.0|^11.0 — enables ZitadelServiceProvider auto-discovery",
-                "phalcon/phalcon": "^5.0 — enables Phalcon MVC/Micro plugins",
-                "symfony/http-kernel": "^6.4|^7.0 — enables ZitadelBundle",
-                "yiisoft/yii-web": "^3.0 — enables Yii 3 PSR-15 bootstrap"
+                "laravel/framework": "^11.0|^12.0|^13.0 — enables ZitadelServiceProvider auto-discovery",
+                "phalcon/phalcon": "v6.0.x-dev — enables Phalcon MVC/Micro plugins",
+                "symfony/http-kernel": "^7.0|^8.0 — enables ZitadelBundle",
+                "yiisoft/router": "^3.0|^4.0 — enables Yii bridge with AllowAnonymous support"
             },
             "type": "library",
             "extra": {
@@ -1325,8 +1325,11 @@
                 }
             },
             "scripts": {
+                "pre-test": [
+                    "rm -f build/coverage/clover.xml"
+                ],
                 "test": [
-                    "phpunit --testsuite=tests --coverage-html=build/coverage/html --coverage-clover=build/coverage/clover.xml --log-junit=build/reports/junit.xml"
+                    "phpunit --testsuite=tests"
                 ],
                 "spec": [
                     "phpunit --testsuite=specs --log-junit=build/reports/junit-spec.xml"
@@ -1353,7 +1356,7 @@
                     "homepage": "https://zitadel.com"
                 }
             ],
-            "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii 3, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
+            "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
             "homepage": "https://github.com/zitadel/zitadel-php",
             "keywords": [
                 "auth",
@@ -1381,7 +1384,7 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "phalcon/phalcon": 20,
-        "zitadel/zitadel-php": 20
+        "zitadel/sdk": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

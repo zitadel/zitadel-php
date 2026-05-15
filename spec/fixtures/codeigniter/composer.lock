@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1e44d47f835cee1203e078dac7b5942d",
+    "content-hash": "4e7b109968843bbf690a2db50cf6afec",
     "packages": [
         {
             "name": "codeigniter4/framework",
@@ -416,12 +416,12 @@
             "time": "2024-09-11T13:17:53+00:00"
         },
         {
-            "name": "zitadel/zitadel-php",
-            "version": "dev-master",
+            "name": "zitadel/sdk",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "../../..",
-                "reference": "16aa3fc69609322c5d0ec31ee4d6d5bab9dc9d46"
+                "reference": "67b1c3325378494a6b250965baac478bfbd69a42"
             },
             "require": {
                 "ext-curl": "*",
@@ -448,10 +448,10 @@
             },
             "suggest": {
                 "codeigniter4/framework": "^4.0 — enables ZitadelFilter",
-                "laravel/framework": "^10.0|^11.0 — enables ZitadelServiceProvider auto-discovery",
-                "phalcon/phalcon": "^5.0 — enables Phalcon MVC/Micro plugins",
-                "symfony/http-kernel": "^6.4|^7.0 — enables ZitadelBundle",
-                "yiisoft/yii-web": "^3.0 — enables Yii 3 PSR-15 bootstrap"
+                "laravel/framework": "^11.0|^12.0|^13.0 — enables ZitadelServiceProvider auto-discovery",
+                "phalcon/phalcon": "v6.0.x-dev — enables Phalcon MVC/Micro plugins",
+                "symfony/http-kernel": "^7.0|^8.0 — enables ZitadelBundle",
+                "yiisoft/router": "^3.0|^4.0 — enables Yii bridge with AllowAnonymous support"
             },
             "type": "library",
             "extra": {
@@ -473,8 +473,11 @@
                 }
             },
             "scripts": {
+                "pre-test": [
+                    "rm -f build/coverage/clover.xml"
+                ],
                 "test": [
-                    "phpunit --testsuite=tests --coverage-html=build/coverage/html --coverage-clover=build/coverage/clover.xml --log-junit=build/reports/junit.xml"
+                    "phpunit --testsuite=tests"
                 ],
                 "spec": [
                     "phpunit --testsuite=specs --log-junit=build/reports/junit-spec.xml"
@@ -501,7 +504,7 @@
                     "homepage": "https://zitadel.com"
                 }
             ],
-            "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii 3, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
+            "description": "Official Zitadel PKCE authentication middleware for PHP. Supports Laravel, Symfony, Yii, CodeIgniter 4, Slim 4, Mezzio, and Phalcon.",
             "homepage": "https://github.com/zitadel/zitadel-php",
             "keywords": [
                 "auth",
@@ -528,7 +531,7 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "zitadel/zitadel-php": 20
+        "zitadel/sdk": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,
