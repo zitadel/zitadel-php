@@ -62,9 +62,9 @@ final class HttpProxyForwardTest extends TestCase
 
         while (time() < $deadline) {
             $ch = curl_init('http://127.0.0.1:' . self::$port . '/');
-            curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 1]);
+            curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 1, CURLOPT_CONNECTTIMEOUT => 1]);
             $ok = curl_exec($ch) !== false;
-            curl_close($ch);
+            unset($ch); // curl_close() is deprecated in PHP 8.5+; unset frees the handle
 
             if ($ok) {
                 break;

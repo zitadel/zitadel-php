@@ -237,14 +237,16 @@ final class HttpProxy
         $error = curl_error($ch);
 
         if ($errno !== 0 || $raw === false) {
-            curl_close($ch);
+            // curl_close() is a no-op since PHP 8.0 — the handle is freed when
+            // it goes out of scope. Calling it explicitly triggers a deprecation
+            // notice in PHP 8.5+ which can interfere with phpunit's error handler
+            // when invoked outside a test method context (e.g. setUpBeforeClass).
             throw new \RuntimeException("[zitadel] Proxy request failed: {$error} (errno {$errno})");
         }
 
         /** @var string $raw */
-        $headerSize   = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-        $status       = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        $status     = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
         $rawHeaders   = substr($raw, 0, $headerSize);
         $responseBody = substr($raw, $headerSize);
