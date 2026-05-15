@@ -491,15 +491,21 @@ final class ZitadelMiddlewareTest extends TestCase
 
         self::assertSame(400, $response->getStatusCode());
 
+        $pkceHeader = null;
         foreach ($response->getHeader('Set-Cookie') as $h) {
             if (str_starts_with($h, '__nextgen_pkce=')) {
-                self::assertStringNotContainsString('; Secure', $h, 'Deletion header must NOT carry Secure on HTTP');
-
-                return;
+                $pkceHeader = $h;
+                break;
             }
         }
-        // If no deletion header is sent at all on HTTP, the test is vacuously satisfied
-        // (there was no cookie to delete). Acceptable because the browser also has no cookie.
+
+        // The middleware must always send a deletion cookie on callback error so that any
+        // stale PKCE cookie already in the browser is purged — even when the cookie was
+        // absent from this request (the browser may still hold a leftover from a previous
+        // aborted flow).
+        self::assertNotNull($pkceHeader, '__nextgen_pkce deletion header must be present on HTTP callback error');
+        self::assertStringContainsString('Max-Age=0', $pkceHeader, 'Deletion header must set Max-Age=0');
+        self::assertStringNotContainsString('; Secure', $pkceHeader, 'Deletion header must NOT carry Secure on HTTP');
     }
 
     // =========================================================================

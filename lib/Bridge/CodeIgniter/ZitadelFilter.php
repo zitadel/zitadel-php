@@ -269,12 +269,16 @@ final class ZitadelFilter implements FilterInterface
     {
         $pkceValue = $request->getCookie('__nextgen_pkce');
         if (!is_string($pkceValue) || $pkceValue === '') {
-            return $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.');
+            $response = $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.');
+            $response->deleteCookie('__nextgen_pkce', '', '/');
+            return $response;
         }
 
         $pkce = PkceStateCookie::decrypt($pkceValue, $this->config->cookieSecret);
         if ($pkce === null) {
-            return $this->badRequest('Authentication failed — PKCE state cookie invalid. Please try signing in again.');
+            $response = $this->badRequest('Authentication failed — PKCE state cookie invalid. Please try signing in again.');
+            $response->deleteCookie('__nextgen_pkce', '', '/');
+            return $response;
         }
 
         $state = $request->getGet('state');

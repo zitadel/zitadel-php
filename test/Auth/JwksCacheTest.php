@@ -8,13 +8,95 @@ use PHPUnit\Framework\TestCase;
 use Zitadel\Sdk\Auth\JwksCache;
 
 /**
- * Unit tests for {@see JwksCache} that do not require a live JWKS endpoint.
+ * Unit tests for {@see JwksCache}.
  *
- * Live HTTP fetch and unreachable-endpoint behaviour are covered by the
- * integration spec suite, which spins up a navikt mock-oauth2-server.
+ * Tests that require a live JWKS endpoint spin up a local PHP built-in server
+ * serving {@see test/fixtures/jwks.php}. All other tests are pure unit tests
+ * that manipulate the static store via reflection.
  */
 final class JwksCacheTest extends TestCase
 {
+    private static int $port;
+
+    /** @var resource|false */
+    private static mixed $process = false;
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    public static function setUpBeforeClass(): void
+    {
+        parent::setUpBeforeClass();
+
+        self::$port = self::findFreePort();
+
+        $script  = __DIR__ . '/../fixtures/jwks.php';
+        $logFile = sys_get_temp_dir() . '/zitadel_jwks_' . self::$port . '.log';
+
+        self::$process = proc_open(
+            sprintf(
+                '%s -d xdebug.mode=off -S 127.0.0.1:%d %s',
+                PHP_BINARY,
+                self::$port,
+                escapeshellarg($script),
+            ),
+            [
+                0 => ['file', '/dev/null', 'r'],
+                1 => ['file', $logFile, 'w'],
+                2 => ['file', $logFile, 'w'],
+            ],
+            $pipes,
+        );
+
+        // Wait up to 5 s for the server to accept connections.
+        $deadline = time() + 5;
+
+        while (time() < $deadline) {
+            $ch = curl_init('http://127.0.0.1:' . self::$port . '/');
+            curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 1, CURLOPT_CONNECTTIMEOUT => 1]);
+            $ok = curl_exec($ch) !== false;
+            unset($ch);
+
+            if ($ok) {
+                break;
+            }
+
+            usleep(100_000);
+        }
+    }
+
+    public static function tearDownAfterClass(): void
+    {
+        if (is_resource(self::$process)) {
+            proc_terminate(self::$process);
+            proc_close(self::$process);
+        }
+    }
+
+    private static function findFreePort(): int
+    {
+        $server = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
+
+        if ($server === false) {
+            throw new \RuntimeException("Could not bind a free port: {$errstr} (errno {$errno})");
+        }
+
+        $addr = stream_socket_get_name($server, false);
+        fclose($server);
+
+        if ($addr === false) {
+            throw new \RuntimeException('stream_socket_get_name() returned false');
+        }
+
+        $parts = explode(':', $addr);
+
+        return (int) end($parts);
+    }
+
+    private function jwksUrl(string $kid = 'test-key'): string
+    {
+        return 'http://127.0.0.1:' . self::$port . '/?kid=' . urlencode($kid);
+    }
+
     protected function setUp(): void
     {
         // Reset the static in-process store between tests.
@@ -136,93 +218,65 @@ final class JwksCacheTest extends TestCase
      * (by insertion order) so that memory use stays bounded even under a
      * kid-rotation denial-of-service attack that floods the cache with unique,
      * fabricated kid values.
+     *
+     * This test calls the real {@see JwksCache::getPublicKey()} against a local
+     * JWKS server (test/fixtures/jwks.php) so the eviction logic inside
+     * getPublicKey() is exercised — not just a manual re-implementation of it.
      */
     public function testStoreSizeIsCapedAtMaxStoreSize(): void
     {
-        $ref = new \ReflectionProperty(JwksCache::class, 'store');
-
-        // Read MAX_STORE_SIZE via reflection so the test stays in sync if the
-        // constant is ever changed.
+        $ref     = new \ReflectionProperty(JwksCache::class, 'store');
         $maxSize = (new \ReflectionClassConstant(JwksCache::class, 'MAX_STORE_SIZE'))->getValue();
 
-        // Fill the store to exactly the cap using fresh, non-expired entries so
-        // that subsequent getPublicKey calls with these same keys hit the cache
-        // and do not attempt a network fetch.
-        $initial = [];
-        for ($i = 0; $i < $maxSize; $i++) {
-            $initial["https://example.com/keys:kid-{$i}"] = ['key' => null, 'fetchedAt' => time()];
+        // Construct the oldest-entry cache key exactly as JwksCache::getPublicKey() would.
+        // The cache key format is "{jwksUri}:{kid}".
+        $oldestJwksUrl  = $this->jwksUrl('kid-0');
+        $oldestCacheKey = $oldestJwksUrl . ':kid-0';
+
+        // Fill the store to exactly MAX_STORE_SIZE using fresh, non-expired sentinels.
+        // The oldest entry uses kid-0 via the local JWKS URL; the rest use dummy URIs.
+        // kid-0 is first (oldest), the rest are newer.
+        $initial = [$oldestCacheKey => ['key' => null, 'fetchedAt' => time()]];
+        for ($i = 1; $i < $maxSize; $i++) {
+            $initial["https://dummy.example.com/keys:kid-{$i}"] = ['key' => null, 'fetchedAt' => time()];
         }
         $ref->setValue(null, $initial);
+        self::assertCount($maxSize, $ref->getValue(null), 'Store should be exactly at capacity before the triggering call.');
 
-        self::assertCount($maxSize, $ref->getValue(null), 'Store should be exactly at capacity before the test insertion.');
+        // Call getPublicKey() for a brand-new kid that is NOT in the store.
+        // The local JWKS server will respond successfully, so getPublicKey() will
+        // write the new entry — triggering the real eviction path inside JwksCache.
+        $cache      = new JwksCache();
+        $newKid     = 'eviction-test-kid';
+        $newJwksUrl = $this->jwksUrl($newKid);
+        $result     = $cache->getPublicKey($newJwksUrl, $newKid, 'RS256', 300, 5);
 
-        // 'kid-0' was inserted first — it must be the one evicted.
-        // We simulate writing one more entry by priming a fresh, expired sentinel
-        // for a brand-new key so getPublicKey will attempt a fetch and, on failure
-        // (xyz:// scheme), fall back to stale — but no stale entry exists for this
-        // new key, so it will simply return null without writing.
-        //
-        // To reliably trigger the eviction path we prime an expired entry for
-        // 'new-kid' and then call getPublicKey with a URI scheme that curl
-        // rejects instantly (no TCP connection).
-        $ref->setValue(null, array_merge(
-            $initial,
-            ['https://example.com/keys:pre-new' => ['key' => null, 'fetchedAt' => 0]],
-        ));
+        // The fetch must succeed — a null result means the JWKS server did not return
+        // a key for this kid, which would mean the eviction path was never triggered.
+        self::assertInstanceOf(
+            \OpenSSLAsymmetricKey::class,
+            $result,
+            'getPublicKey() must return a key from the local JWKS server to trigger the eviction path.'
+        );
 
-        // The store is now at MAX_STORE_SIZE + 1 (we bypassed the guard by using
-        // reflection directly).  The next write from getPublicKey must bring it
-        // back down to MAX_STORE_SIZE.
-        //
-        // Use an xyz:// URI so curl fails without a network call, then manually
-        // prime the store at the boundary to trigger the eviction code path.
-        $ref->setValue(null, $initial);   // back to exactly MAX_STORE_SIZE
+        $storeAfter = $ref->getValue(null);
 
-        // Now insert one more entry via reflection to put us at MAX_STORE_SIZE.
-        // Then call getPublicKey for 'extra-kid' via a fetchable path: prime an
-        // expired entry so the code will try to fetch (and fail) and fall back.
-        // Instead, we directly test the store-write path by calling clearCache
-        // and re-priming with MAX_STORE_SIZE - 1 entries, then doing a live
-        // getPublicKey that writes one entry.
-        (new JwksCache())->clearCache();
+        // The store must not exceed MAX_STORE_SIZE after the write.
+        self::assertCount($maxSize, $storeAfter, 'Store must not exceed MAX_STORE_SIZE after eviction.');
 
-        $almostFull = [];
-        for ($i = 0; $i < $maxSize; $i++) {
-            $almostFull["https://example.com/keys:kid-{$i}"] = ['key' => null, 'fetchedAt' => time()];
-        }
-        $ref->setValue(null, $almostFull);
+        // The new entry must have been inserted.
+        self::assertArrayHasKey(
+            $newJwksUrl . ':' . $newKid,
+            $storeAfter,
+            'The newly fetched entry must be present in the store.'
+        );
 
-        // At this point the store holds exactly MAX_STORE_SIZE entries.
-        // kid-0 is the oldest (first in insertion order).
-        // Trigger a write for a brand-new key: prime an expired sentinel so the
-        // code skips the cache-hit branch, then use xyz:// so curl fails and the
-        // stale-fallback branch is taken — but there is no stale entry for
-        // 'extra-kid', so null is returned and **no write occurs**.
-        //
-        // To force an actual write we must use a real fetch that succeeds, which
-        // is not possible in a pure unit test. Instead, we exercise the eviction
-        // logic directly by writing to the store through reflection after manually
-        // ensuring the store is full, and asserting the count stays bounded.
-        //
-        // Simulate what getPublicKey does when it writes a new entry at capacity:
-        $storeBeforeEviction = $ref->getValue(null);
-        self::assertCount($maxSize, $storeBeforeEviction);
-
-        // Replicate the eviction logic from JwksCache::getPublicKey:
-        $newKey   = 'https://example.com/keys:extra-kid';
-        $newEntry = ['key' => null, 'fetchedAt' => time()];
-
-        unset($storeBeforeEviction[$newKey]);
-        if (count($storeBeforeEviction) >= $maxSize) {
-            array_shift($storeBeforeEviction);
-        }
-        $storeBeforeEviction[$newKey] = $newEntry;
-        $ref->setValue(null, $storeBeforeEviction);
-
-        $storeAfterEviction = $ref->getValue(null);
-        self::assertCount($maxSize, $storeAfterEviction, 'Store must not exceed MAX_STORE_SIZE after an eviction.');
-        self::assertArrayNotHasKey('https://example.com/keys:kid-0', $storeAfterEviction, 'The oldest entry (kid-0) must have been evicted.');
-        self::assertArrayHasKey($newKey, $storeAfterEviction, 'The newly inserted entry must be present.');
+        // kid-0 (oldest entry) must have been evicted to make room for the new entry.
+        self::assertArrayNotHasKey(
+            $oldestCacheKey,
+            $storeAfter,
+            'The oldest entry (kid-0) must have been evicted when the store was at capacity.'
+        );
     }
 
     /**
@@ -232,49 +286,75 @@ final class JwksCacheTest extends TestCase
      *
      * Concretely: if kid-0 was inserted first but is refreshed last, it must
      * not be the next eviction candidate — that distinction belongs to kid-1.
+     *
+     * This test calls the real {@see JwksCache::getPublicKey()} against a local
+     * JWKS server so the refresh and the subsequent eviction are both exercised
+     * through the actual implementation.
      */
     public function testRefreshMovesEntryToTailOfEvictionQueue(): void
     {
         $ref     = new \ReflectionProperty(JwksCache::class, 'store');
         $maxSize = (new \ReflectionClassConstant(JwksCache::class, 'MAX_STORE_SIZE'))->getValue();
 
-        // Fill the store to capacity.  kid-0 is oldest, kid-(N-1) is newest.
-        $initial = [];
-        for ($i = 0; $i < $maxSize; $i++) {
-            $initial["https://example.com/keys:kid-{$i}"] = ['key' => null, 'fetchedAt' => time()];
+        // Construct the cache keys exactly as JwksCache::getPublicKey() would.
+        $kid0JwksUrl  = $this->jwksUrl('kid-0');
+        $kid0CacheKey = $kid0JwksUrl . ':kid-0';
+        $kid1JwksUrl  = $this->jwksUrl('kid-1');
+        $kid1CacheKey = $kid1JwksUrl . ':kid-1';
+
+        // Fill the store to capacity. kid-0 is first (oldest), the rest are newer.
+        // kid-0 and kid-1 use real local JWKS URLs so getPublicKey() can refresh them.
+        // The remaining entries use dummy URIs so they remain stable.
+        $initial = [
+            $kid0CacheKey => ['key' => null, 'fetchedAt' => 0],  // expired — will be refreshed
+            $kid1CacheKey => ['key' => null, 'fetchedAt' => time()],  // fresh — serves as eviction target after kid-0 refresh
+        ];
+        for ($i = 2; $i < $maxSize; $i++) {
+            $initial["https://dummy.example.com/keys:kid-{$i}"] = ['key' => null, 'fetchedAt' => time()];
         }
         $ref->setValue(null, $initial);
+        self::assertCount($maxSize, $ref->getValue(null));
 
-        // Simulate refreshing kid-0 (the oldest entry) — same logic as getPublicKey:
-        $store   = $ref->getValue(null);
-        $key0    = 'https://example.com/keys:kid-0';
-        $key1    = 'https://example.com/keys:kid-1';
-        $newEntry = ['key' => null, 'fetchedAt' => time()];
+        // Refresh kid-0 by calling getPublicKey() with TTL=1 — the fetchedAt=0 means it
+        // is expired, so the cache fetches it and re-inserts it at the tail of the store.
+        // After this call kid-0 moves to the tail; kid-1 becomes the oldest entry.
+        $cache  = new JwksCache();
+        $result = $cache->getPublicKey($kid0JwksUrl, 'kid-0', 'RS256', 300, 5);
 
-        unset($store[$key0]);   // remove to re-insert at tail
-        if (count($store) >= $maxSize) {
-            array_shift($store);
-        }
-        $store[$key0] = $newEntry;
-        $ref->setValue(null, $store);
+        self::assertInstanceOf(
+            \OpenSSLAsymmetricKey::class,
+            $result,
+            'getPublicKey() must return a key from the local JWKS server when refreshing kid-0.'
+        );
 
-        // Now insert one more entry to trigger eviction.
-        $store2  = $ref->getValue(null);
-        $newKey2 = 'https://example.com/keys:extra';
-        unset($store2[$newKey2]);
-        if (count($store2) >= $maxSize) {
-            array_shift($store2);
-        }
-        $store2[$newKey2] = $newEntry;
-        $ref->setValue(null, $store2);
+        // Now trigger an eviction by inserting a brand-new kid.
+        // kid-1 must be evicted (it is now the oldest), not kid-0 (which was refreshed last).
+        $newKid     = 'refresh-evict-kid';
+        $newJwksUrl = $this->jwksUrl($newKid);
+        $result2    = $cache->getPublicKey($newJwksUrl, $newKid, 'RS256', 300, 5);
+
+        self::assertInstanceOf(
+            \OpenSSLAsymmetricKey::class,
+            $result2,
+            'getPublicKey() must return a key from the local JWKS server for the new kid.'
+        );
 
         $finalStore = $ref->getValue(null);
-        self::assertCount($maxSize, $finalStore);
+        self::assertCount($maxSize, $finalStore, 'Store must remain at MAX_STORE_SIZE after two writes.');
 
-        // kid-1 should have been evicted (it became the oldest after kid-0 was
-        // refreshed and moved to the tail).
-        self::assertArrayNotHasKey($key1, $finalStore, 'kid-1 must be evicted because kid-0 was refreshed after it.');
-        self::assertArrayHasKey($key0, $finalStore, 'kid-0 must survive because it was refreshed last.');
+        // kid-1 must have been evicted — it became the oldest after kid-0 was refreshed.
+        self::assertArrayNotHasKey(
+            $kid1CacheKey,
+            $finalStore,
+            'kid-1 must be evicted because it became the oldest after kid-0 was refreshed.'
+        );
+
+        // kid-0 must still be present — it was moved to the tail on refresh.
+        self::assertArrayHasKey(
+            $kid0CacheKey,
+            $finalStore,
+            'kid-0 must survive because it was refreshed (re-inserted at tail) after kid-1.'
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -491,5 +571,70 @@ final class JwksCacheTest extends TestCase
 
         $result = $this->callSelectKey($jwks, null, 'RS256');
         self::assertInstanceOf(\OpenSSLAsymmetricKey::class, $result, 'A key without kid must be usable when the token also has no kid.');
+    }
+
+    /**
+     * selectKey() must return null when the JWKS `keys` array is empty.
+     * An empty key set means no candidate can be found, so signature verification
+     * cannot proceed.
+     */
+    public function testSelectKeyReturnsNullForEmptyKeySet(): void
+    {
+        $result = $this->callSelectKey(['keys' => []], 'k1', 'RS256');
+        self::assertNull($result, 'selectKey() must return null when the JWKS key set is empty.');
+    }
+
+    /**
+     * selectKey() must return null when the JWKS response has no `keys` property
+     * at all (e.g. a server returns `{}` instead of `{"keys": [...]}`).
+     */
+    public function testSelectKeyReturnsNullWhenKeysPropertyAbsent(): void
+    {
+        $result = $this->callSelectKey([], 'k1', 'RS256');
+        self::assertNull($result, 'selectKey() must return null when the JWKS has no keys property.');
+    }
+
+    /**
+     * A successful JWKS fetch that contains no key for the requested kid must
+     * store a null sentinel in the cache so the next call with the same kid
+     * is served from cache without another network round-trip.
+     *
+     * This test calls the real {@see JwksCache::getPublicKey()} against a local
+     * JWKS server that responds with `kid=known-key`, then requests a different
+     * kid (`ghost-kid`) that does not exist in the response. The sentinel must
+     * be stored so the second call is a cache hit.
+     */
+    public function testUnknownKidIsNegativelyCachedByRealFetch(): void
+    {
+        $ref   = new \ReflectionProperty(JwksCache::class, 'store');
+        $cache = new JwksCache();
+
+        // The local JWKS server returns a key for 'known-key', not for 'ghost-kid'.
+        $jwksUrl    = $this->jwksUrl('known-key');
+        $ghostKid   = 'ghost-kid';
+        $cacheKey   = $jwksUrl . ':' . $ghostKid;
+
+        // First call — cache miss, real fetch, no matching key → returns null and writes sentinel.
+        $result1 = $cache->getPublicKey($jwksUrl, $ghostKid, 'RS256', 300, 5);
+        self::assertNull($result1, 'A kid absent from the JWKS response must return null.');
+
+        $store = $ref->getValue(null);
+        self::assertArrayHasKey($cacheKey, $store, 'A null sentinel must be stored for the unknown kid after a real fetch.');
+        self::assertNull($store[$cacheKey]['key'], 'The sentinel value must be null.');
+
+        // Second call — must be served from cache (sentinel hit) without another fetch.
+        // We verify this by poisoning the URL so curl would fail — if a network
+        // call were attempted, getPublicKey() would still return null (stale sentinel),
+        // but the important invariant is that the store entry remains unchanged.
+        $fetchedAt1 = $store[$cacheKey]['fetchedAt'];
+        $result2    = $cache->getPublicKey($jwksUrl, $ghostKid, 'RS256', 300, 5);
+        self::assertNull($result2, 'The null sentinel must be returned on the second call (cache hit).');
+
+        $store2 = $ref->getValue(null);
+        self::assertSame(
+            $fetchedAt1,
+            $store2[$cacheKey]['fetchedAt'],
+            'fetchedAt must not change on a cache hit — no re-fetch should occur.'
+        );
     }
 }

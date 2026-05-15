@@ -247,6 +247,15 @@ readonly class ZitadelConfig
             }
         }
 
+        foreach ($protectedRoutes as $route) {
+            if (!is_string($route) || (!str_starts_with($route, '/') || str_starts_with($route, '//'))) {
+                throw new \InvalidArgumentException(
+                    "[zitadel] Each entry in protectedRoutes must be a relative path starting with a single \"/\". " .
+                    "Received: \"{$route}\"."
+                );
+            }
+        }
+
         if ($clockSkewSeconds < 0 || $jwksTtlSeconds < 0 || $httpTimeoutSeconds < 0) {
             throw new \InvalidArgumentException(
                 '[zitadel] clockSkewSeconds, jwksTtlSeconds, and httpTimeoutSeconds must be non-negative integers.'

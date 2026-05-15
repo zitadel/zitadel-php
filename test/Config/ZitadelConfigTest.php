@@ -743,4 +743,59 @@ final class ZitadelConfigTest extends TestCase
 
         self::assertSame(['/health', '/public/*'], $config->ignoredRoutes);
     }
+
+    // ---------------------------------------------------------------------------
+    // protectedRoutes entries must start with /
+    // ---------------------------------------------------------------------------
+
+    /**
+     * A protectedRoutes entry without a leading slash (e.g. 'admin') would never
+     * match any real request path, silently failing to enforce authentication.
+     * The constructor must reject such entries to catch misconfiguration early.
+     */
+    public function testThrowsForProtectedRouteWithoutLeadingSlash(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/protectedRoutes/i');
+
+        new ZitadelConfig(
+            issuerUrl:       'https://example.zitadel.cloud',
+            clientId:        'client',
+            redirectUri:     'https://myapp.com/callback',
+            cookieSecret:    bin2hex(random_bytes(32)),
+            protectedRoutes: ['admin'],
+        );
+    }
+
+    /**
+     * A protectedRoutes entry starting with `//` would be treated as a
+     * protocol-relative URL by matchesRoutes() rather than a path, silently
+     * failing to enforce authentication.
+     */
+    public function testThrowsForProtectedRouteWithProtocolRelativePath(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/protectedRoutes/i');
+
+        new ZitadelConfig(
+            issuerUrl:       'https://example.zitadel.cloud',
+            clientId:        'client',
+            redirectUri:     'https://myapp.com/callback',
+            cookieSecret:    bin2hex(random_bytes(32)),
+            protectedRoutes: ['//evil.com/admin'],
+        );
+    }
+
+    public function testAcceptsValidProtectedRoutesWithWildcard(): void
+    {
+        $config = new ZitadelConfig(
+            issuerUrl:       'https://example.zitadel.cloud',
+            clientId:        'client',
+            redirectUri:     'https://myapp.com/callback',
+            cookieSecret:    bin2hex(random_bytes(32)),
+            protectedRoutes: ['/admin', '/dashboard/*'],
+        );
+
+        self::assertSame(['/admin', '/dashboard/*'], $config->protectedRoutes);
+    }
 }

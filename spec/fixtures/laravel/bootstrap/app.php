@@ -11,7 +11,8 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__ . '/../routes/web.php',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->encryptCookies(except: ['__nextgen_pkce', '__nextgen_auth']);
+        // Cookie encryption for __nextgen_auth and __nextgen_pkce is excluded automatically
+        // by ZitadelServiceProvider::boot() — no manual configuration needed here.
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

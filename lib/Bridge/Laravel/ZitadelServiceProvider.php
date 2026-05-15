@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Zitadel\Sdk\Bridge\Laravel;
 
 use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\ServiceProvider;
@@ -106,6 +107,13 @@ final class ZitadelServiceProvider extends ServiceProvider
                 'zitadel-config'
             );
         }
+
+        // Exclude __nextgen_auth and __nextgen_pkce from Laravel's cookie encryption.
+        // These cookies are already encrypted by libsodium; double-encrypting them with
+        // Laravel's AES key would corrupt the values and break the authentication flow.
+        // Calling the static method here means users do not need to add these names to
+        // their own bootstrap/app.php encryptCookies(except: [...]) configuration.
+        EncryptCookies::except(['__nextgen_auth', '__nextgen_pkce']);
 
         $this->loadRoutesFrom(__DIR__ . '/routes/zitadel.php');
 

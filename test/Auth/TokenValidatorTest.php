@@ -989,6 +989,37 @@ final class TokenValidatorTest extends TestCase
     }
 
     /**
+     * `exp` encoded as a JSON string (e.g. "9999999999") must be rejected.
+     * A string `exp` would pass is_string() checks but fails is_int(), preventing
+     * an attacker from bypassing the expiry check by supplying a string value.
+     */
+    public function testRejectsExpClaimThatIsAString(): void
+    {
+        $headerB64   = rtrim(strtr(base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT'])), '+/', '-_'), '=');
+        // Craft a payload with exp as a JSON string, not an integer.
+        $payloadJson = '{"sub":"u","iss":"https://example.zitadel.cloud","exp":"' . (time() + 3600) . '","iat":' . time() . '}';
+        $payloadB64  = rtrim(strtr(base64_encode($payloadJson), '+/', '-_'), '=');
+        $token       = "{$headerB64}.{$payloadB64}.fakesig";
+
+        self::assertNull($this->validator->validate($token));
+    }
+
+    /**
+     * `sub` encoded as an integer (e.g. 12345) must be rejected.
+     * RFC 7519 §4.1.2 specifies sub as a string; a non-string value fails the
+     * is_string() gate at step 17 and must cause null to be returned.
+     */
+    public function testReturnsNullWhenSubIsInteger(): void
+    {
+        $headerB64   = rtrim(strtr(base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT'])), '+/', '-_'), '=');
+        $payloadJson = '{"sub":12345,"iss":"https://example.zitadel.cloud","exp":' . (time() + 3600) . ',"iat":' . time() . '}';
+        $payloadB64  = rtrim(strtr(base64_encode($payloadJson), '+/', '-_'), '=');
+        $token       = "{$headerB64}.{$payloadB64}.fakesig";
+
+        self::assertNull($this->validator->validate($token));
+    }
+
+    /**
      * @param array<string, mixed> $claims
      * @return array{0: string, 1: \Zitadel\Sdk\Auth\JwksCacheInterface}
      */
