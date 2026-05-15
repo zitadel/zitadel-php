@@ -10,6 +10,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Zitadel\Sdk\Attribute\AllowAnonymous;
+use Zitadel\Sdk\Auth\HttpProxy;
 use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
@@ -22,6 +23,10 @@ use Zitadel\Sdk\Config\ZitadelConfig;
  * logout paths before the framework router runs.
  *
  * Processing order per request:
+ *
+ * 0. **Proxy** (`proxyPath`): strips hop-by-hop and internal headers, forwards the
+ *    request to `$issuerUrl`, upgrades `__nextgen*` cookies to `Secure` on HTTPS,
+ *    and returns the upstream response verbatim without touching auth state.
  *
  * 1. **Callback** (`callbackPath`): validates PKCE state cookie, asserts `state` param
  *    matches, exchanges authorization code for tokens, validates the access token, sets
@@ -84,6 +89,11 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         $path     = $uri->getPath();
         $isSecure = $uri->getScheme() === 'https';
 
+        // Step 0 — proxy
+        if (HttpProxy::isProxyPath($path, $this->config->proxyPath)) {
+            return $this->handleProxy($request, $isSecure);
+        }
+
         // Step 1 — callback
         if ($path === $this->config->callbackPath) {
             return $this->handleCallback($request, $isSecure);
@@ -122,6 +132,76 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         $response = $handler->handle($request->withAttribute('zitadel.claims', null));
 
         return $this->deleteStaleNextgenCookies($response, $request);
+    }
+
+    /**
+     * Reverse-proxies a `/__nextgen/*` request to the upstream auth backend.
+     *
+     * Strips hop-by-hop and internal headers in both directions, appends
+     * `REMOTE_ADDR` to the `X-Forwarded-For` chain, and upgrades `__nextgen*`
+     * session cookies to `Secure` when the client connection is HTTPS.
+     * Returns a 502 Bad Gateway on cURL failure.
+     *
+     * @param ServerRequestInterface $request  The incoming proxy request.
+     * @param bool                   $isSecure Whether the request was made over HTTPS.
+     * @return ResponseInterface The upstream response (or 502 on failure).
+     */
+    private function handleProxy(ServerRequestInterface $request, bool $isSecure): ResponseInterface
+    {
+        $uri    = $request->getUri();
+        $suffix = substr($uri->getPath(), strlen(rtrim($this->config->proxyPath, '/')));
+        $query  = $uri->getQuery();
+        $target = $this->config->issuerUrl . $suffix . ($query !== '' ? '?' . $query : '');
+
+        $headers = [];
+        foreach ($request->getHeaders() as $name => $values) {
+            $headers[$name] = implode(', ', $values);
+        }
+
+        $method     = $request->getMethod();
+        $hasBody    = !in_array(strtoupper($method), ['GET', 'HEAD'], true);
+        $body       = $hasBody ? (string) $request->getBody() : '';
+        $server     = $request->getServerParams();
+        $remoteAddr = (string) ($server['REMOTE_ADDR'] ?? '');
+        $host       = $request->getHeaderLine('Host') ?: $uri->getHost();
+        $proto      = $uri->getScheme();
+
+        try {
+            $result = HttpProxy::forward(
+                $method,
+                $target,
+                $headers,
+                $body,
+                $remoteAddr,
+                $host,
+                $proto,
+                $this->config->httpTimeoutSeconds,
+            );
+        } catch (\RuntimeException) {
+            $response = $this->responseFactory->createResponse(502);
+            $response->getBody()->write('Bad Gateway');
+
+            return $response->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        }
+
+        $response = $this->responseFactory->createResponse($result['status']);
+
+        foreach ($result['headers'] as $name => $values) {
+            foreach ($values as $value) {
+                $response = $response->withAddedHeader($name, $value);
+            }
+        }
+
+        foreach ($result['setCookies'] as $cookie) {
+            $response = $response->withAddedHeader(
+                'Set-Cookie',
+                HttpProxy::upgradeSessionCookie($cookie, $isSecure),
+            );
+        }
+
+        $response->getBody()->write($result['body']);
+
+        return $response;
     }
 
     /**

@@ -28,6 +28,7 @@ return [
     */
     'callback_path'        => env('ZITADEL_CALLBACK_PATH', '/zitadel/callback'),
     'logout_path'          => env('ZITADEL_LOGOUT_PATH', '/zitadel/logout'),
+    'proxy_path'           => env('ZITADEL_PROXY_PATH', '/__nextgen'),
     'post_login_redirect'  => env('ZITADEL_POST_LOGIN_URL', '/'),
     'post_logout_redirect' => env('ZITADEL_POST_LOGOUT_URL', '/'),
 

@@ -13,6 +13,7 @@ use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Zitadel\Sdk\Attribute\AllowAnonymous;
+use Zitadel\Sdk\Auth\HttpProxy;
 use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
@@ -84,6 +85,12 @@ readonly class ZitadelListener implements EventSubscriberInterface
 
         $request = $event->getRequest();
         $path    = '/' . ltrim($request->getPathInfo(), '/');
+
+        // Handle proxy (before callback/logout — fires before routing so any path is reachable)
+        if (HttpProxy::isProxyPath($path, $this->config->proxyPath)) {
+            $event->setResponse($this->handleProxy($request));
+            return;
+        }
 
         // Handle callback
         if ($path === $this->config->callbackPath) {
@@ -224,6 +231,71 @@ readonly class ZitadelListener implements EventSubscriberInterface
                 ));
             }
         }
+    }
+
+    /**
+     * Reverse-proxies a `/__nextgen/*` request to the upstream auth backend.
+     *
+     * Strips hop-by-hop and internal headers in both directions, appends
+     * `REMOTE_ADDR` to the `X-Forwarded-For` chain, and upgrades `__nextgen*`
+     * session cookies to `Secure` when the client connection is HTTPS. Returns
+     * a 502 Bad Gateway response on cURL failure.
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $request The incoming proxy request.
+     * @return Response The upstream response (or 502 on failure).
+     */
+    private function handleProxy(\Symfony\Component\HttpFoundation\Request $request): Response
+    {
+        $proxyPath = rtrim($this->config->proxyPath, '/');
+        $suffix    = substr($request->getPathInfo(), strlen($proxyPath));
+        $query     = $request->getQueryString();
+        $target    = $this->config->issuerUrl . $suffix . ($query !== null && $query !== '' ? '?' . $query : '');
+
+        $headers = [];
+        foreach ($request->headers->all() as $name => $values) {
+            $headers[$name] = implode(', ', $values);
+        }
+
+        $method     = $request->getMethod();
+        $hasBody    = !in_array(strtoupper($method), ['GET', 'HEAD'], true);
+        $body       = $hasBody ? (string) $request->getContent() : '';
+        $remoteAddr = (string) ($request->server->get('REMOTE_ADDR') ?? '');
+        $host       = (string) ($request->headers->get('Host') ?: $request->getHost());
+        $proto      = $request->getScheme();
+        $isSecure   = $request->isSecure();
+
+        try {
+            $result = HttpProxy::forward(
+                $method,
+                $target,
+                $headers,
+                $body,
+                $remoteAddr,
+                $host,
+                $proto,
+                $this->config->httpTimeoutSeconds,
+            );
+        } catch (\RuntimeException) {
+            return new Response('Bad Gateway', 502, ['Content-Type' => 'text/plain; charset=utf-8']);
+        }
+
+        $response = new Response($result['body'], $result['status']);
+
+        foreach ($result['headers'] as $name => $values) {
+            foreach ($values as $value) {
+                $response->headers->set($name, $value, false);
+            }
+        }
+
+        foreach ($result['setCookies'] as $cookie) {
+            $response->headers->set(
+                'Set-Cookie',
+                HttpProxy::upgradeSessionCookie($cookie, $isSecure),
+                false,
+            );
+        }
+
+        return $response;
     }
 
     /**

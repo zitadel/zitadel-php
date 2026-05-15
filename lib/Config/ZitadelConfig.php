@@ -37,6 +37,12 @@ readonly class ZitadelConfig
      *                                                  the session cookie and redirect to Zitadel's
      *                                                  end-session endpoint.
      *                                                  Default: `/zitadel/logout`
+     * @param string               $proxyPath          URL path prefix the middleware intercepts to
+     *                                                  reverse-proxy requests to `$issuerUrl`.
+     *                                                  Strips the prefix and forwards the remainder
+     *                                                  (e.g. `/__nextgen/oauth/v2/keys` →
+     *                                                  `$issuerUrl/oauth/v2/keys`).
+     *                                                  Default: `/__nextgen`
      * @param string               $postLoginRedirect  Where to redirect after a successful login.
      *                                                  The PKCE state cookie overrides this with the
      *                                                  originally requested path when one is available.
@@ -104,6 +110,7 @@ readonly class ZitadelConfig
         // ── Optional: routing / paths ────────────────────────────────────────
         public string               $callbackPath       = '/zitadel/callback',
         public string               $logoutPath         = '/zitadel/logout',
+        public string               $proxyPath          = '/__nextgen',
         public string               $postLoginRedirect  = '/',
         public string               $postLogoutRedirect = '/',
         // ── Optional: route protection policy ───────────────────────────────
@@ -163,6 +170,13 @@ readonly class ZitadelConfig
             throw new \InvalidArgumentException(
                 '[zitadel] issuerUrl must be the base URL (e.g. https://my.zitadel.cloud), ' .
                 'not the discovery URL. Remove the /.well-known/openid-configuration suffix.'
+            );
+        }
+
+        if (!str_starts_with($proxyPath, '/') || str_starts_with($proxyPath, '//')) {
+            throw new \InvalidArgumentException(
+                "[zitadel] proxyPath must be a relative path starting with a single \"/\". " .
+                "Received: \"{$proxyPath}\"."
             );
         }
 

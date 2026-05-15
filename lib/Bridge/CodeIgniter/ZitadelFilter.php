@@ -11,6 +11,7 @@ use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\Response;
 use CodeIgniter\HTTP\ResponseInterface;
 use Zitadel\Sdk\Attribute\AllowAnonymous;
+use Zitadel\Sdk\Auth\HttpProxy;
 use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
@@ -64,6 +65,11 @@ final readonly class ZitadelFilter implements FilterInterface
         }
 
         $path = '/' . ltrim($request->getPath(), '/');
+
+        // Handle proxy (before callback/logout — filter fires before routing)
+        if (HttpProxy::isProxyPath($path, $this->config->proxyPath)) {
+            return $this->handleProxy($request);
+        }
 
         // Handle callback
         if ($path === $this->config->callbackPath) {
@@ -160,6 +166,72 @@ final readonly class ZitadelFilter implements FilterInterface
     #[\Override]
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null): ResponseInterface
     {
+        return $response;
+    }
+
+    /**
+     * Reverse-proxies a `/__nextgen/*` request to the upstream auth backend.
+     *
+     * Strips hop-by-hop and internal headers in both directions, appends
+     * `REMOTE_ADDR` to the `X-Forwarded-For` chain, and upgrades `__nextgen*`
+     * session cookies to `Secure` when the client connection is HTTPS.
+     * Multiple `Set-Cookie` headers are emitted via `header(..., false)` since
+     * CI4's `Response::setHeader()` uses replace semantics for repeated names.
+     * Returns a 502 Bad Gateway response on cURL failure.
+     *
+     * @param IncomingRequest $request The incoming proxy request.
+     * @return ResponseInterface The upstream response (or 502 on failure).
+     */
+    private function handleProxy(IncomingRequest $request): ResponseInterface
+    {
+        $proxyPath = rtrim($this->config->proxyPath, '/');
+        $suffix    = substr('/' . ltrim($request->getPath(), '/'), strlen($proxyPath));
+        $query     = $request->getUri()->getQuery();
+        $target    = $this->config->issuerUrl . $suffix . ($query !== '' ? '?' . $query : '');
+
+        $headers = [];
+        foreach ($request->headers() as $name => $value) {
+            $headers[$name] = is_array($value) ? implode(', ', $value) : (string) $value;
+        }
+
+        $method     = $request->getMethod();
+        $hasBody    = !in_array(strtoupper($method), ['GET', 'HEAD'], true);
+        $body       = $hasBody ? (string) $request->getBody() : '';
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+        $host       = $request->getHeaderLine('Host') ?: $request->getUri()->getHost();
+        $proto      = $request->getUri()->getScheme();
+        $isSecure   = $request->isSecure();
+
+        try {
+            $result = HttpProxy::forward(
+                $method,
+                $target,
+                $headers,
+                $body,
+                $remoteAddr,
+                $host,
+                $proto,
+                $this->config->httpTimeoutSeconds,
+            );
+        } catch (\RuntimeException) {
+            return service('response')
+                ->setStatusCode(502)
+                ->setContentType('text/plain; charset=utf-8')
+                ->setBody('Bad Gateway');
+        }
+
+        $response = service('response')->setStatusCode($result['status']);
+
+        foreach ($result['headers'] as $name => $values) {
+            $response->setHeader($name, implode(', ', $values));
+        }
+
+        foreach ($result['setCookies'] as $cookie) {
+            header('Set-Cookie: ' . HttpProxy::upgradeSessionCookie($cookie, $isSecure), false);
+        }
+
+        $response->setBody($result['body']);
+
         return $response;
     }
 

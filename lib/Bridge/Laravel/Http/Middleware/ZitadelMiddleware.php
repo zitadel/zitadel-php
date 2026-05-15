@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Zitadel\Sdk\Attribute\AllowAnonymous;
+use Zitadel\Sdk\Auth\HttpProxy;
 use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
@@ -53,6 +54,11 @@ readonly class ZitadelMiddleware
     {
         $path = $request->path();
         $path = str_starts_with($path, '/') ? $path : '/' . $path;
+
+        // Proxy path — handled by ProxyController, skip auth entirely
+        if (HttpProxy::isProxyPath($path, $this->config->proxyPath)) {
+            return $next($request);
+        }
 
         // Ignored routes pass through immediately
         if ($this->matchesRoutes($path, $this->config->ignoredRoutes)) {

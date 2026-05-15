@@ -58,6 +58,7 @@ final class ZitadelServiceProvider extends ServiceProvider
                 cookieSecret:       (string) ($cfg['cookie_secret'] ?? ''),
                 callbackPath:       (string) ($cfg['callback_path'] ?? '/zitadel/callback'),
                 logoutPath:         (string) ($cfg['logout_path'] ?? '/zitadel/logout'),
+                proxyPath:          (string) ($cfg['proxy_path'] ?? '/__nextgen'),
                 postLoginRedirect:  (string) ($cfg['post_login_redirect'] ?? '/'),
                 postLogoutRedirect: (string) ($cfg['post_logout_redirect'] ?? '/'),
                 protectAll:         (bool)   ($cfg['protect_all'] ?? false),
