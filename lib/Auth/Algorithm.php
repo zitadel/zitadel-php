@@ -50,4 +50,35 @@ enum Algorithm: string
             default => false,
         };
     }
+
+    /**
+     * Returns the expected JWK `kty` value for this algorithm.
+     *
+     * Used by {@see JwksCache::selectKey()} to reject keys whose type does not
+     * match the algorithm declared in the token header. For example, an RSA key
+     * must not be returned for an ES256 token even when the `kid` matches.
+     */
+    public function expectedKty(): string
+    {
+        return match ($this) {
+            self::ES256, self::ES384, self::ES512 => 'EC',
+            default => 'RSA',
+        };
+    }
+
+    /**
+     * Returns the expected JWK `crv` value for EC algorithms, or null for RSA.
+     *
+     * ES256 requires curve P-256, ES384 requires P-384, ES512 requires P-521.
+     * Used by {@see JwksCache::selectKey()} to reject EC keys on the wrong curve.
+     */
+    public function expectedCrv(): ?string
+    {
+        return match ($this) {
+            self::ES256 => 'P-256',
+            self::ES384 => 'P-384',
+            self::ES512 => 'P-521',
+            default     => null,
+        };
+    }
 }

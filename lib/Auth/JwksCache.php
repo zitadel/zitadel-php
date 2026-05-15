@@ -186,12 +186,28 @@ final class JwksCache implements JwksCacheInterface
         /** @var array<int, array<string, string>> $keys */
         $keys = $jwks['keys'] ?? [];
 
-        $candidates = array_filter($keys, static function (array $k) use ($kid, $alg): bool {
+        $algorithm = Algorithm::tryFrom($alg);
+
+        $candidates = array_filter($keys, static function (array $k) use ($kid, $alg, $algorithm): bool {
             $useOk = !isset($k['use']) || $k['use'] === 'sig';
             $kidOk = $kid === null || ($k['kid'] ?? null) === $kid;
             $algOk = $kid !== null || !isset($k['alg']) || $k['alg'] === $alg;
 
-            return $useOk && $kidOk && $algOk;
+            // Verify the JWK key type matches the algorithm family.
+            // An RSA key must not be selected for an EC algorithm and vice versa,
+            // even when the kid matches — using the wrong key type causes
+            // openssl_verify() to return -1 (error) rather than 0 (bad signature),
+            // which makes it harder to diagnose and slightly more expensive.
+            $ktyOk = $algorithm === null || !isset($k['kty']) || $k['kty'] === $algorithm->expectedKty();
+
+            // For EC algorithms verify the key is on the correct curve.
+            // ES256 requires P-256, ES384 requires P-384, ES512 requires P-521.
+            // A P-521 key must not be returned for an ES256 token even when the
+            // kid matches — OpenSSL would reject the signature with an error.
+            $expectedCrv = $algorithm?->expectedCrv();
+            $crvOk       = $expectedCrv === null || !isset($k['crv']) || $k['crv'] === $expectedCrv;
+
+            return $useOk && $kidOk && $algOk && $ktyOk && $crvOk;
         });
 
         foreach ($candidates as $jwk) {

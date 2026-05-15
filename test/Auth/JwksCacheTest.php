@@ -276,4 +276,220 @@ final class JwksCacheTest extends TestCase
         self::assertArrayNotHasKey($key1, $finalStore, 'kid-1 must be evicted because kid-0 was refreshed after it.');
         self::assertArrayHasKey($key0, $finalStore, 'kid-0 must survive because it was refreshed last.');
     }
+
+    // -------------------------------------------------------------------------
+    // selectKey — kty / crv filtering
+    // -------------------------------------------------------------------------
+
+    /**
+     * Helper: call the private selectKey() method via reflection.
+     *
+     * @param array<string, mixed> $jwks
+     */
+    private function callSelectKey(array $jwks, ?string $kid, string $alg): ?\OpenSSLAsymmetricKey
+    {
+        $method = new \ReflectionMethod(JwksCache::class, 'selectKey');
+        return $method->invoke(new JwksCache(), $jwks, $kid, $alg);
+    }
+
+    /**
+     * An RSA JWK must not be returned when the token header declares an EC
+     * algorithm (ES256). Without the kty guard, JwkConverter would happily
+     * build an RSA key, and openssl_verify() would return -1 (error) instead
+     * of 0 (bad signature), producing a confusing failure mode.
+     */
+    public function testSelectKeyRejectsRsaKeyForEcAlgorithm(): void
+    {
+        $rsaKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($rsaKey);
+
+        $details = openssl_pkey_get_details($rsaKey);
+        self::assertNotFalse($details);
+
+        $n = rtrim(strtr(base64_encode($details['rsa']['n']), '+/', '-_'), '=');
+        $e = rtrim(strtr(base64_encode($details['rsa']['e']), '+/', '-_'), '=');
+
+        $jwks = ['keys' => [['kty' => 'RSA', 'kid' => 'k1', 'use' => 'sig', 'n' => $n, 'e' => $e]]];
+
+        // ES256 expects kty=EC — the RSA key must be filtered out.
+        $result = $this->callSelectKey($jwks, 'k1', 'ES256');
+        self::assertNull($result, 'An RSA key must not be selected for an EC algorithm.');
+    }
+
+    /**
+     * An EC JWK must not be returned when the token header declares an RSA
+     * algorithm (RS256). JwkConverter would build an EC key, and openssl_verify()
+     * with an RSA digest constant would return -1.
+     */
+    public function testSelectKeyRejectsEcKeyForRsaAlgorithm(): void
+    {
+        $ecKey = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        self::assertNotFalse($ecKey);
+
+        $details = openssl_pkey_get_details($ecKey);
+        self::assertNotFalse($details);
+
+        $x = rtrim(strtr(base64_encode($details['ec']['x']), '+/', '-_'), '=');
+        $y = rtrim(strtr(base64_encode($details['ec']['y']), '+/', '-_'), '=');
+
+        $jwks = ['keys' => [['kty' => 'EC', 'kid' => 'k1', 'use' => 'sig', 'crv' => 'P-256', 'x' => $x, 'y' => $y]]];
+
+        // RS256 expects kty=RSA — the EC key must be filtered out.
+        $result = $this->callSelectKey($jwks, 'k1', 'RS256');
+        self::assertNull($result, 'An EC key must not be selected for an RSA algorithm.');
+    }
+
+    /**
+     * For ES256 the curve must be P-256. A P-384 key (even with a matching kid)
+     * must be excluded — OpenSSL would reject the signature and the mismatch
+     * should be caught before attempting verification.
+     */
+    public function testSelectKeyRejectsWrongEcCurveForEs256(): void
+    {
+        $ecKey = openssl_pkey_new(['curve_name' => 'secp384r1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        self::assertNotFalse($ecKey);
+
+        $details = openssl_pkey_get_details($ecKey);
+        self::assertNotFalse($details);
+
+        $x = rtrim(strtr(base64_encode(str_pad($details['ec']['x'], 48, "\x00", STR_PAD_LEFT)), '+/', '-_'), '=');
+        $y = rtrim(strtr(base64_encode(str_pad($details['ec']['y'], 48, "\x00", STR_PAD_LEFT)), '+/', '-_'), '=');
+
+        $jwks = ['keys' => [['kty' => 'EC', 'kid' => 'k1', 'use' => 'sig', 'crv' => 'P-384', 'x' => $x, 'y' => $y]]];
+
+        // ES256 expects crv=P-256 — a P-384 key must be filtered out.
+        $result = $this->callSelectKey($jwks, 'k1', 'ES256');
+        self::assertNull($result, 'A P-384 key must not be selected for ES256 (requires P-256).');
+    }
+
+    /**
+     * For ES384 the curve must be P-384. A P-256 key must be excluded.
+     */
+    public function testSelectKeyRejectsWrongEcCurveForEs384(): void
+    {
+        $ecKey = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        self::assertNotFalse($ecKey);
+
+        $details = openssl_pkey_get_details($ecKey);
+        self::assertNotFalse($details);
+
+        $x = rtrim(strtr(base64_encode($details['ec']['x']), '+/', '-_'), '=');
+        $y = rtrim(strtr(base64_encode($details['ec']['y']), '+/', '-_'), '=');
+
+        $jwks = ['keys' => [['kty' => 'EC', 'kid' => 'k1', 'use' => 'sig', 'crv' => 'P-256', 'x' => $x, 'y' => $y]]];
+
+        // ES384 expects crv=P-384 — a P-256 key must be filtered out.
+        $result = $this->callSelectKey($jwks, 'k1', 'ES384');
+        self::assertNull($result, 'A P-256 key must not be selected for ES384 (requires P-384).');
+    }
+
+    /**
+     * Correct kty AND crv: a P-256 EC key must be selected for ES256.
+     */
+    public function testSelectKeyAcceptsCorrectEcKeyForEs256(): void
+    {
+        $ecKey = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        self::assertNotFalse($ecKey);
+
+        $details = openssl_pkey_get_details($ecKey);
+        self::assertNotFalse($details);
+
+        $x = rtrim(strtr(base64_encode($details['ec']['x']), '+/', '-_'), '=');
+        $y = rtrim(strtr(base64_encode($details['ec']['y']), '+/', '-_'), '=');
+
+        $jwks = ['keys' => [['kty' => 'EC', 'kid' => 'k1', 'use' => 'sig', 'crv' => 'P-256', 'x' => $x, 'y' => $y]]];
+
+        $result = $this->callSelectKey($jwks, 'k1', 'ES256');
+        self::assertInstanceOf(\OpenSSLAsymmetricKey::class, $result, 'A P-256 key must be accepted for ES256.');
+    }
+
+    /**
+     * When 3 keys exist in the JWKS and only key #2 has the matching kid,
+     * selectKey must return exactly that key.
+     */
+    public function testSelectKeyPicksCorrectKeyByKidFromMultipleKeys(): void
+    {
+        $key1 = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        $key2 = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        $key3 = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($key1);
+        self::assertNotFalse($key2);
+        self::assertNotFalse($key3);
+
+        $d1 = openssl_pkey_get_details($key1);
+        $d2 = openssl_pkey_get_details($key2);
+        $d3 = openssl_pkey_get_details($key3);
+        self::assertNotFalse($d1);
+        self::assertNotFalse($d2);
+        self::assertNotFalse($d3);
+
+        $toJwk = static function (array $d, string $kid): array {
+            return [
+                'kty' => 'RSA',
+                'kid' => $kid,
+                'use' => 'sig',
+                'n'   => rtrim(strtr(base64_encode($d['rsa']['n']), '+/', '-_'), '='),
+                'e'   => rtrim(strtr(base64_encode($d['rsa']['e']), '+/', '-_'), '='),
+            ];
+        };
+
+        $jwks = ['keys' => [
+            $toJwk($d1, 'kid-1'),
+            $toJwk($d2, 'kid-2'),
+            $toJwk($d3, 'kid-3'),
+        ]];
+
+        $selected = $this->callSelectKey($jwks, 'kid-2', 'RS256');
+        self::assertInstanceOf(\OpenSSLAsymmetricKey::class, $selected);
+
+        // Confirm it is key2's material by comparing the public key PEM.
+        $selectedDetails = openssl_pkey_get_details($selected);
+        self::assertNotFalse($selectedDetails);
+        self::assertSame($d2['key'], $selectedDetails['key'], 'selectKey must return the key whose kid matches (key #2).');
+    }
+
+    /**
+     * A key with `use: enc` must be excluded from signature verification even
+     * when its kid matches the token header.
+     */
+    public function testSelectKeyExcludesEncryptionKeys(): void
+    {
+        $rsaKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($rsaKey);
+
+        $details = openssl_pkey_get_details($rsaKey);
+        self::assertNotFalse($details);
+
+        $n = rtrim(strtr(base64_encode($details['rsa']['n']), '+/', '-_'), '=');
+        $e = rtrim(strtr(base64_encode($details['rsa']['e']), '+/', '-_'), '=');
+
+        $jwks = ['keys' => [['kty' => 'RSA', 'kid' => 'enc-key', 'use' => 'enc', 'n' => $n, 'e' => $e]]];
+
+        $result = $this->callSelectKey($jwks, 'enc-key', 'RS256');
+        self::assertNull($result, 'A key with use:enc must not be selected for signature verification.');
+    }
+
+    /**
+     * When the JWKS contains no `kid` field on any key and the token has no
+     * `kid` header, the first key matching `use` and `alg` constraints must be
+     * returned (RFC 7517 §4.5: absent `kid` means the key set has a single key
+     * or the application determines the key by other means).
+     */
+    public function testSelectKeyFallsBackToFirstMatchingKeyWhenNoKid(): void
+    {
+        $rsaKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($rsaKey);
+
+        $details = openssl_pkey_get_details($rsaKey);
+        self::assertNotFalse($details);
+
+        $n = rtrim(strtr(base64_encode($details['rsa']['n']), '+/', '-_'), '=');
+        $e = rtrim(strtr(base64_encode($details['rsa']['e']), '+/', '-_'), '=');
+
+        // JWKS key has no kid field; token also has no kid (null).
+        $jwks = ['keys' => [['kty' => 'RSA', 'use' => 'sig', 'alg' => 'RS256', 'n' => $n, 'e' => $e]]];
+
+        $result = $this->callSelectKey($jwks, null, 'RS256');
+        self::assertInstanceOf(\OpenSSLAsymmetricKey::class, $result, 'A key without kid must be usable when the token also has no kid.');
+    }
 }

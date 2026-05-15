@@ -68,10 +68,12 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
         $request = $di->get('request');
         $path    = '/' . ltrim($request->getURI(true), '/');
 
-        // Reset any stale pending-redirect flag from the previous request.
-        // In long-running runtimes (Swoole, RoadRunner) where the DI container
-        // is shared across requests, a flag not cleaned up due to an earlier
-        // exception could otherwise cause a spurious PKCE redirect.
+        // Reset claims and any stale pending-redirect flag from the previous request.
+        // In long-running runtimes (Swoole, RoadRunner) where the DI container is
+        // shared across requests, stale state from a previous request must be cleared
+        // unconditionally before any logic runs — including paths that short-circuit
+        // before a controller is dispatched (proxy, callback, logout).
+        $di->set('zitadel.claims', static fn () => null);
         if ($di->has('_zitadel_pending_redirect')) {
             $di->remove('_zitadel_pending_redirect');
         }

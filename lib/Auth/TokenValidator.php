@@ -152,10 +152,19 @@ readonly class TokenValidator
         }
 
         // Step 13 — aud check
+        //
+        // array_intersect() uses loose (==) comparison, which allows type-juggling
+        // bypasses such as aud=0 matching a configured audience of '0', or a missing
+        // aud claim (null) matching an audience of ''. To prevent this, filter the
+        // token's aud values to only string entries before intersecting. RFC 7519
+        // §4.1.3 specifies aud as a string or array of strings; any non-string value
+        // is treated as an absent audience and cannot satisfy the requirement.
         if ($this->config->audience !== null) {
             $tokenAud = $payload['aud'] ?? null;
             $expected = (array) $this->config->audience;
-            $actual   = is_array($tokenAud) ? $tokenAud : [$tokenAud];
+            $rawActual = is_array($tokenAud) ? $tokenAud : [$tokenAud];
+            /** @var string[] $actual */
+            $actual   = array_values(array_filter($rawActual, 'is_string'));
             if (count(array_intersect($expected, $actual)) === 0) {
                 return null;
             }

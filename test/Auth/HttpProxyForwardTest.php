@@ -337,6 +337,37 @@ final class HttpProxyForwardTest extends TestCase
         );
     }
 
+    // ── Internal response header stripping ───────────────────────────────────
+
+    /**
+     * A compromised or misconfigured upstream must not be able to plant an
+     * `x-nextgen-auth-token` header in its response. If that header reached the
+     * browser the client could re-send it on the next request, bypassing auth.
+     *
+     * The proxy must strip SDK-internal headers from responses in the same way
+     * it strips them from requests.
+     */
+    public function testInternalHeaderNotReturnedFromUpstreamResponse(): void
+    {
+        // Ask the echo server to include x-nextgen-auth-token in its response.
+        $result = HttpProxy::forward(
+            'GET',
+            $this->echoUrl(),
+            ['X-Echo-Response-Header' => 'x-nextgen-auth-token: planted-secret'],
+            '',
+            '1.2.3.4',
+            'host',
+            'http',
+            5,
+        );
+
+        self::assertArrayNotHasKey(
+            'x-nextgen-auth-token',
+            array_change_key_case($result['headers'], CASE_LOWER),
+            'x-nextgen-auth-token injected by the upstream must be stripped from the proxy response',
+        );
+    }
+
     // ── Multiple Set-Cookie header isolation ──────────────────────────────────
 
     // ── CRLF injection guard ──────────────────────────────────────────────────

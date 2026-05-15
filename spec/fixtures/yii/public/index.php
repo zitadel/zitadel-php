@@ -50,19 +50,9 @@ $appHandler = new class ($urlMatcher, $psr17, $container) implements RequestHand
                 ->withBody($this->psr17->createStream('Not Found'));
         }
 
-        // Route::$middlewares (v4) / $middlewareDefinitions (v3) is private — read via reflection.
-        // The property was renamed in yiisoft/router v4; try both names for cross-version compat.
+        // Use the public getData('enabledMiddlewares') API — respects disableMiddleware() exclusions.
         // The action class is always the last element (appended by Route::action()).
-        $definitions = [];
-        foreach (['middlewares', 'middlewareDefinitions'] as $propName) {
-            try {
-                $prop        = new \ReflectionProperty($result->route(), $propName);
-                $definitions = (array) $prop->getValue($result->route());
-                break;
-            } catch (\ReflectionException) {
-                // try next property name
-            }
-        }
+        $definitions = $result->route()->getData('enabledMiddlewares');
         $actionClass = end($definitions);
 
         /** @var callable $action */

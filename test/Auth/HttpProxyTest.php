@@ -119,10 +119,22 @@ final class HttpProxyTest extends TestCase
         self::assertSame($cookie, $result);
     }
 
-    public function testUpgradeDoesNotTouchNonNextgenCookie(): void
+    public function testUpgradeAddsSecureFlagToNonNextgenCookieOnHttps(): void
+    {
+        // All cookies from the upstream OIDC server — not just __nextgen* ones —
+        // must have their Secure flag added when the client-facing connection is
+        // HTTPS. This includes CSRF tokens, state cookies, and other cookies that
+        // the OIDC server may set under its own names.
+        $cookie   = 'session=xyz; HttpOnly; SameSite=Lax';
+        $upgraded = HttpProxy::upgradeSessionCookie($cookie, true);
+
+        self::assertSame($cookie . '; Secure', $upgraded);
+    }
+
+    public function testUpgradeDoesNotAddSecureFlagToNonNextgenCookieOnHttp(): void
     {
         $cookie = 'session=xyz; HttpOnly; SameSite=Lax';
-        $result = HttpProxy::upgradeSessionCookie($cookie, true);
+        $result = HttpProxy::upgradeSessionCookie($cookie, false);
 
         self::assertSame($cookie, $result);
     }

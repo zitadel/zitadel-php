@@ -76,17 +76,17 @@ final class HttpProxy
     }
 
     /**
-     * Conditionally adds the `Secure` flag to any `__nextgen*` session cookie.
+     * Conditionally adds the `Secure` flag to any cookie set by the upstream.
      *
      * The proxy may terminate TLS — the upstream auth server cannot know whether
      * the browser-facing connection is HTTPS. When `$secure` is `true` (i.e. the
-     * original request arrived over HTTPS), `Secure` is appended so that
-     * `__nextgen*` session cookies are never sent over plain HTTP on subsequent
-     * requests. When `$secure` is `false` (plain HTTP), the flag is intentionally
-     * omitted: browsers refuse to store cookies with `Secure` on non-TLS
-     * connections, which would break the auth flow entirely.
-     *
-     * Non-`__nextgen*` cookies are returned unchanged.
+     * original request arrived over HTTPS), `Secure` is appended to every cookie
+     * so that session and CSRF cookies set by the OIDC server are never sent over
+     * plain HTTP on subsequent requests. This covers both SDK-named `__nextgen*`
+     * cookies and any other cookies the OIDC server may set (e.g. CSRF tokens,
+     * state cookies). When `$secure` is `false` (plain HTTP), the flag is
+     * intentionally omitted: browsers refuse to store cookies with `Secure` on
+     * non-TLS connections, which would break the auth flow entirely.
      *
      * @param string $cookie Raw `Set-Cookie` header value.
      * @param bool   $secure `true` when the client-facing connection is HTTPS.
@@ -94,9 +94,7 @@ final class HttpProxy
      */
     public static function upgradeSessionCookie(string $cookie, bool $secure): string
     {
-        $name = trim(explode('=', $cookie, 2)[0] ?? '');
-
-        if (!str_starts_with($name, '__nextgen') || !$secure) {
+        if (!$secure) {
             return $cookie;
         }
 
@@ -271,8 +269,11 @@ final class HttpProxy
 
         // Response headers to strip: all hop-by-hop headers, plus `location`
         // (this proxy never issues redirects, so leaking internal upstream URLs
-        // to the browser is both unnecessary and potentially misleading).
-        $responseHopByHop = array_flip([...self::HOP_BY_HOP, 'location']);
+        // to the browser is both unnecessary and potentially misleading), plus
+        // SDK-internal headers (a compromised or misconfigured upstream must not
+        // be able to plant an `x-nextgen-auth-token` value that reaches the
+        // browser and is later re-sent as if it were a legitimate SDK token).
+        $responseHopByHop = array_flip([...self::HOP_BY_HOP, 'location', ...self::INTERNAL_HEADERS]);
         $responseHeaders  = [];
         $setCookies       = [];
 

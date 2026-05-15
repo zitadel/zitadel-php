@@ -48,6 +48,44 @@ final class AlgorithmTest extends TestCase
         ];
     }
 
+    #[DataProvider('expectedKtyProvider')]
+    public function testExpectedKty(Algorithm $algorithm, string $expected): void
+    {
+        self::assertSame($expected, $algorithm->expectedKty());
+    }
+
+    /** @return array<int, array{Algorithm, string}> */
+    public static function expectedKtyProvider(): array
+    {
+        return [
+            [Algorithm::RS256, 'RSA'],
+            [Algorithm::RS384, 'RSA'],
+            [Algorithm::RS512, 'RSA'],
+            [Algorithm::ES256, 'EC'],
+            [Algorithm::ES384, 'EC'],
+            [Algorithm::ES512, 'EC'],
+        ];
+    }
+
+    #[DataProvider('expectedCrvProvider')]
+    public function testExpectedCrv(Algorithm $algorithm, ?string $expected): void
+    {
+        self::assertSame($expected, $algorithm->expectedCrv());
+    }
+
+    /** @return array<int, array{Algorithm, string|null}> */
+    public static function expectedCrvProvider(): array
+    {
+        return [
+            [Algorithm::RS256, null],
+            [Algorithm::RS384, null],
+            [Algorithm::RS512, null],
+            [Algorithm::ES256, 'P-256'],
+            [Algorithm::ES384, 'P-384'],
+            [Algorithm::ES512, 'P-521'],
+        ];
+    }
+
     public function testFromValue(): void
     {
         self::assertSame(Algorithm::RS256, Algorithm::from('RS256'));

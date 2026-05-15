@@ -8,8 +8,13 @@ declare(strict_types=1);
  * Returns the request method, path, headers, and body as JSON so tests can
  * verify exactly what HttpProxy::forward() sends to the upstream.
  *
- * Special behaviour: if the request includes `X-Echo-Cookies: N`, the response
- * emits N `Set-Cookie` headers so tests can verify multi-cookie isolation.
+ * Special behaviour:
+ *   - If the request includes `X-Echo-Cookies: N`, the response emits N
+ *     `Set-Cookie` headers so tests can verify multi-cookie isolation.
+ *   - If the request includes `X-Echo-Response-Header: Name: Value`, the
+ *     response emits that header once, allowing tests to verify that the proxy
+ *     strips unwanted response headers (e.g. SDK-internal headers injected by a
+ *     compromised upstream).
  */
 
 $headers = [];
@@ -28,6 +33,18 @@ if (isset($_SERVER['CONTENT_TYPE']) && (string) $_SERVER['CONTENT_TYPE'] !== '')
 
 if (isset($_SERVER['CONTENT_LENGTH']) && (string) $_SERVER['CONTENT_LENGTH'] !== '') {
     $headers['content-length'] = (string) $_SERVER['CONTENT_LENGTH'];
+}
+
+// Emit a custom response header when the caller provides one via
+// `X-Echo-Response-Header: Name: Value`. This lets tests verify that the
+// proxy strips unwanted headers from upstream responses.
+if (isset($headers['x-echo-response-header'])) {
+    $raw   = $headers['x-echo-response-header'];
+    $parts = explode(':', $raw, 2);
+
+    if (count($parts) === 2) {
+        header(trim($parts[0]) . ': ' . trim($parts[1]));
+    }
 }
 
 // Emit N Set-Cookie headers when requested so the caller can verify

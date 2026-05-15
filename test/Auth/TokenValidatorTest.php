@@ -467,6 +467,61 @@ final class TokenValidatorTest extends TestCase
         self::assertNull((new TokenValidator($config, $mockCache))->validate($token));
     }
 
+    // ---------------------------------------------------------------------------
+    // aud type-confusion — non-string aud values must not match via loose ==
+    // ---------------------------------------------------------------------------
+
+    /**
+     * array_intersect() uses loose (==) comparison. A token whose `aud` is an
+     * integer 0 must NOT satisfy an audience requirement of '0' (the string), even
+     * though PHP's `0 == '0'` is true. Filtering aud entries to strings only
+     * before intersection prevents this.
+     */
+    public function testRejectsAudIntZeroWhenAudienceIsStringZero(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+            'aud' => 0, // integer — malformed but crafted by attacker
+        ]);
+
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client-id',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            audience:     '0',
+        );
+        self::assertNull((new TokenValidator($config, $mockCache))->validate($token));
+    }
+
+    /**
+     * A missing `aud` claim results in `[null]` during the intersection check.
+     * `null == ''` is true in PHP, so a loosely-compared intersection of [''] and
+     * [null] would incorrectly succeed. The string-only filter must block this.
+     */
+    public function testRejectsMissingAudWhenAudienceIsEmptyString(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+            // no 'aud' key — missing claim
+        ]);
+
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client-id',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            audience:     '',
+        );
+        self::assertNull((new TokenValidator($config, $mockCache))->validate($token));
+    }
+
     /**
      * A non-integer `nbf` claim must cause the token to be rejected — silently
      * ignoring a non-integer `nbf` would allow an attacker to bypass the
