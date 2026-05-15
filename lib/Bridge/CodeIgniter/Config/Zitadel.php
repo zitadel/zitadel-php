@@ -9,7 +9,9 @@ use CodeIgniter\Config\BaseConfig;
 /**
  * Zitadel SDK configuration for CodeIgniter 4.
  *
- * Copy this file to `app/Config/Zitadel.php` in your CI4 project and adjust
+ * Copy this file to `app/Config/Zitadel.php` in your CI4 project and change the
+ * namespace from `Zitadel\Sdk\Bridge\CodeIgniter\Config` to `Config` so that
+ * CI4's `config('Zitadel')` helper can locate it by short name. Then adjust
  * `$protectAll` and `$ignoredRoutes` for your application. All credentials are
  * read from environment variables via CI4's `env()` helper, which consults the
  * `.env` file, `getenv()`, `$_ENV`, and `$_SERVER` in that order.

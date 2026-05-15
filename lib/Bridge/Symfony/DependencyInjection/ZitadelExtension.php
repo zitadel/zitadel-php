@@ -58,6 +58,7 @@ final class ZitadelExtension extends Extension
                 $config['cookie_secret'],
                 $config['callback_path'],
                 $config['logout_path'],
+                $config['proxy_path'],
                 $config['post_login_redirect'],
                 $config['post_logout_redirect'],
                 $config['protect_all'],

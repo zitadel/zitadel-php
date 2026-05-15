@@ -291,7 +291,7 @@ final class ZitadelFilter implements FilterInterface
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (PkceException $e) {
-            return $this->badRequest('Authentication failed — token exchange error: ' . $e->getMessage());
+            return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);

@@ -16,13 +16,17 @@ use Psr\Http\Message\ServerRequestInterface;
  * A 24-byte random nonce is prepended to the ciphertext and the result is
  * base64url-encoded. The encryption key is {@see \Zitadel\Sdk\Config\ZitadelConfig::$cookieSecret}.
  *
- * ## Two-layer design
+ * ## Cookie API layers
  *
  * - **Lower layer** (`encrypt`/`decrypt`) — pure string I/O; no HTTP objects.
- *   Framework bridges that cannot use PSR-7 (Laravel, Symfony, Phalcon) call these
- *   directly and set/read cookies using their own framework's cookie API.
- * - **Upper layer** (`write`/`read`/`delete`) — PSR-7 convenience wrappers used
- *   by the PSR-15 core middleware and the Yii 3 bridge.
+ *   Used by Laravel (`CallbackController`), Symfony (`ZitadelListener`), and
+ *   CodeIgniter (`ZitadelFilter`), which set/read cookies via their own framework
+ *   cookie API.
+ * - **Upper layer** (`write`/`read`/`delete`) — PSR-7 `ResponseInterface`/
+ *   `ServerRequestInterface` wrappers used by the PSR-15 core middleware and the
+ *   Yii 3 bridge.
+ * - **Phalcon** bridges bypass `PkceStateCookie` entirely and build raw `Set-Cookie`
+ *   header strings directly to work around Phalcon's replace-semantics header API.
  *
  * All methods are static; the class cannot be instantiated.
  */

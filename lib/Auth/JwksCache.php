@@ -11,9 +11,9 @@ namespace Zitadel\Sdk\Auth;
  * array for `$ttlSeconds` seconds. This mirrors the module-level `Map` used in
  * the TypeScript reference implementation (`jwt.ts:261`).
  *
- * This is the **only** class in the library with mutable state. Mutation is
- * intentional and confined to `private static array $store` — no instance state
- * is ever modified.
+ * This is one of two classes in the library with mutable state (the other is
+ * {@see \Zitadel\Sdk\Bridge\CodeIgniter\ZitadelHolder}). Mutation is intentional
+ * and confined to `private static array $store` — no instance state is ever modified.
  *
  * **Long-running runtimes** (Swoole, RoadRunner, FrankenPHP): the static cache
  * persists across requests within a worker process. This is intentional for

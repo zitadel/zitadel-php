@@ -17,9 +17,11 @@ use Zitadel\Sdk\Auth\Claims;
  * Set by {@see ZitadelFilter::before()} after successful token validation.
  * Read by controllers via {@see claims()}.
  *
- * **Long-running runtimes** (Swoole, RoadRunner): reset `$current` manually
- * between requests by calling `ZitadelHolder::set(null)` in your before-request
- * hook, or it will carry the previous request's claims.
+ * **Long-running runtimes** (Swoole, RoadRunner): {@see ZitadelFilter::before()}
+ * already resets `$current` to null at the start of every request, so no manual
+ * reset is needed when the filter is active. If you bypass the filter (e.g. in CLI
+ * commands or custom test setups), call `ZitadelHolder::set(null)` explicitly to
+ * prevent claim leakage between logical requests.
  */
 final class ZitadelHolder
 {

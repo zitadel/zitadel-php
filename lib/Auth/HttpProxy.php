@@ -66,6 +66,7 @@ final class HttpProxy
      *
      * @param string $path      The request path (e.g. `'/__nextgen/oauth/v2/keys'`).
      * @param string $proxyPath The configured proxy path prefix (e.g. `'/__nextgen'`).
+     * @return bool True when `$path` should be forwarded to the upstream backend.
      */
     public static function isProxyPath(string $path, string $proxyPath): bool
     {

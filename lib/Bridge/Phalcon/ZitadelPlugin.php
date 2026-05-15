@@ -334,7 +334,7 @@ readonly class ZitadelPlugin
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (PkceException $e) {
-            return $this->badRequest('Authentication failed — token exchange error: ' . $e->getMessage());
+            return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);
@@ -470,7 +470,7 @@ readonly class ZitadelPlugin
      * Builds a 400 Bad Request HTML error response with a human-readable message.
      *
      * @param string $message The authentication error description shown to the user.
-     * @return Response A 400 response with `Content-Type: text/html; charset=UTF-8`.
+     * @return Response A 400 response with `Content-Type: text/html; charset=utf-8`.
      */
     private function badRequest(string $message): Response
     {
@@ -481,7 +481,7 @@ readonly class ZitadelPlugin
 
         $response = new Response();
         $response->setStatusCode(400);
-        $response->setContentType('text/html', 'UTF-8');
+        $response->setContentType('text/html', 'utf-8');
         $response->setContent($html);
 
         return $response;

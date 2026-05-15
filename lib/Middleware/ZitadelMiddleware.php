@@ -101,7 +101,7 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
 
         // Step 2 — logout
         if ($path === $this->config->logoutPath) {
-            return $this->handleLogout($request);
+            return $this->handleLogout($request, $isSecure);
         }
 
         // Step 3 — ignored routes
@@ -118,7 +118,7 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
             return $handler->handle($request->withAttribute('zitadel.claims', $claims));
         }
 
-        // Step 6a — #[AllowAnonymous] check (Mezzio/Yii 3: route resolved before middleware)
+        // Step 6a — #[AllowAnonymous] check (Mezzio only: RouteResult set by RouteMiddleware)
         if ($this->hasAllowAnonymous($request)) {
             return $handler->handle($request->withAttribute('zitadel.claims', null));
         }
@@ -131,7 +131,7 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         // Step 8 — public unauthenticated
         $response = $handler->handle($request->withAttribute('zitadel.claims', null));
 
-        return $this->deleteStaleNextgenCookies($response, $request);
+        return $this->deleteStaleNextgenCookies($response, $request, $isSecure);
     }
 
     /**
@@ -224,46 +224,50 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
             return $this->badRequest('Authentication failed — PKCE state cookie missing or invalid. Please try signing in again.');
         }
 
+        // Delete the PKCE cookie immediately — it is single-use regardless of outcome.
+        $pkceDeleteCookie = '__nextgen_pkce=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax';
+
         $params = $request->getQueryParams();
         $code   = $params['code'] ?? null;
         $state  = $params['state'] ?? null;
 
         if (!hash_equals($pkce['state'], (string) $state)) {
-            return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
+            return $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.')
+                ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
         }
 
         if (!is_string($code) || $code === '') {
-            $oauthError = $params['error_description'] ?? $params['error'] ?? 'Missing code parameter';
-            return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
+            $oauthError = $params['error_description'] ?? $params['error'] ?? 'Missing code';
+            return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.")
+                ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
         }
-
-        // Delete PKCE cookie immediately (single-use) before code exchange
-        $baseResponse = PkceStateCookie::delete($this->responseFactory->createResponse(302));
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (\Zitadel\Sdk\Exception\PkceException $e) {
-            return $this->badRequest('Authentication failed — token exchange error: ' . $e->getMessage());
+            return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.')
+                ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);
         if ($tokenToValidate === null) {
-            return $this->badRequest('Authentication failed — no usable token in response.');
+            return $this->badRequest('Authentication failed — no usable token in response.')
+                ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
         }
 
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
-            return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
+            return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.')
+                ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
         }
 
-        $maxAge  = max(0, $claims->exp - time());
-        $secure  = $isSecure ? '; Secure' : '';
-        $cookie  = "__nextgen_auth={$tokenToValidate}; Max-Age={$maxAge}; Path=/; HttpOnly; SameSite=Lax{$secure}";
+        $maxAge = max(0, $claims->exp - time());
+        $secure = $isSecure ? '; Secure' : '';
+        $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
 
-        $next = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
-
-        return $baseResponse
-            ->withAddedHeader('Set-Cookie', $cookie)
+        return $this->responseFactory->createResponse(302)
+            ->withAddedHeader('Set-Cookie', $pkceDeleteCookie)
+            ->withAddedHeader('Set-Cookie', "__nextgen_auth={$tokenToValidate}; Max-Age={$maxAge}; Path=/; HttpOnly; SameSite=Lax{$secure}")
             ->withHeader('Location', $next);
     }
 
@@ -273,18 +277,19 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
      * @param ServerRequestInterface $request The logout request (used to collect stale cookies).
      * @return ResponseInterface A 302 redirect to the OIDC end-session endpoint.
      */
-    private function handleLogout(ServerRequestInterface $request): ResponseInterface
+    private function handleLogout(ServerRequestInterface $request, bool $isSecure): ResponseInterface
     {
         $params = http_build_query([
             'client_id'                => $this->config->clientId,
             'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri(),
         ]);
 
+        $secure   = $isSecure ? '; Secure' : '';
         $response = $this->responseFactory->createResponse(302)
             ->withHeader('Location', $this->config->endSessionEndpoint() . '?' . $params)
-            ->withAddedHeader('Set-Cookie', '__nextgen_auth=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax');
+            ->withAddedHeader('Set-Cookie', "__nextgen_auth=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax{$secure}");
 
-        return $this->deleteStaleNextgenCookies($response, $request);
+        return $this->deleteStaleNextgenCookies($response, $request, $isSecure);
     }
 
     /**
@@ -343,15 +348,17 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
      * @return ResponseInterface The response with stale-cookie deletion headers added.
      */
     private function deleteStaleNextgenCookies(
-        ResponseInterface $response,
+        ResponseInterface      $response,
         ServerRequestInterface $request,
+        bool                   $isSecure = false,
     ): ResponseInterface {
+        $secure  = $isSecure ? '; Secure' : '';
         $cookies = $request->getCookieParams();
         foreach (array_keys($cookies) as $name) {
             if (str_starts_with((string) $name, '__nextgen')) {
                 $response = $response->withAddedHeader(
                     'Set-Cookie',
-                    "{$name}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax"
+                    "{$name}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax{$secure}"
                 );
             }
         }
@@ -372,7 +379,7 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
      */
     private function hasAllowAnonymous(ServerRequestInterface $request): bool
     {
-        // RouteResult attribute is set by Mezzio's RouteMiddleware and some Yii 3 routers
+        // RouteResult attribute is set by Mezzio's RouteMiddleware
         $routeResult = $request->getAttribute('Mezzio\Router\RouteResult');
         if ($routeResult !== null && method_exists($routeResult, 'getMatchedRoute')) {
             $route = $routeResult->getMatchedRoute();

@@ -28,6 +28,7 @@ readonly class Configuration implements ConfigurationInterface
                 ->scalarNode('cookie_secret')->isRequired()->cannotBeEmpty()->end()
                 ->scalarNode('callback_path')->defaultValue('/zitadel/callback')->end()
                 ->scalarNode('logout_path')->defaultValue('/zitadel/logout')->end()
+                ->scalarNode('proxy_path')->defaultValue('/__nextgen')->end()
                 ->scalarNode('post_login_redirect')->defaultValue('/')->end()
                 ->scalarNode('post_logout_redirect')->defaultValue('/')->end()
                 ->booleanNode('protect_all')->defaultFalse()->end()

@@ -311,7 +311,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
     private function handleCallback(\Symfony\Component\HttpFoundation\Request $request): Response
     {
         $pkceValue = $request->cookies->get('__nextgen_pkce');
-        if (!is_string($pkceValue)) {
+        if (!is_string($pkceValue) || $pkceValue === '') {
             return $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.');
         }
 
@@ -334,7 +334,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (PkceException $e) {
-            return $this->badRequest('Authentication failed — token exchange error: ' . $e->getMessage());
+            return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);
