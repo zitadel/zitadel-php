@@ -162,6 +162,13 @@ final class HttpProxy
                 continue;
             }
 
+            // Reject headers whose values contain CR or LF to prevent CRLF injection
+            // into the upstream request. cURL 7.77+ blocks these automatically, but
+            // we validate explicitly so behaviour is not cURL-version-dependent.
+            if (str_contains($value, "\r") || str_contains($value, "\n")) {
+                continue;
+            }
+
             if ($lower === 'x-forwarded-for') {
                 $existingXff = $value;
                 continue; // Rebuilt below with $remoteAddr appended

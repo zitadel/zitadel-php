@@ -44,6 +44,7 @@ final class PkceStateCookie
      *                          Must start with `/` and not start with `//`.
      * @param string $secret   Cookie encryption key (64-char hex string → 32 raw bytes).
      * @return string Base64url-encoded `nonce || ciphertext` string.
+     * @throws \InvalidArgumentException When `$secret` is not a valid 64-character hex string.
      */
     public static function encrypt(
         string $verifier,
@@ -78,6 +79,7 @@ final class PkceStateCookie
      * @param string $cookieValue Raw cookie value string (base64url-encoded).
      * @param string $secret      Cookie encryption key (64-char hex string → 32 raw bytes).
      * @return array{verifier: string, state: string, next: string}|null
+     * @throws \InvalidArgumentException When `$secret` is not a valid 64-character hex string.
      */
     public static function decrypt(
         #[\SensitiveParameter] string $cookieValue,

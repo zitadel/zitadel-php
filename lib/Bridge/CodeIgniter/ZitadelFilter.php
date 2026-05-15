@@ -70,6 +70,10 @@ final class ZitadelFilter implements FilterInterface
     #[\Override]
     public function before(RequestInterface $request, $arguments = null): ?ResponseInterface
     {
+        // Always reset at the start of every request so that stale claims from a
+        // previous request on the same PHP-FPM worker can never leak into this one.
+        ZitadelHolder::set(null);
+
         if (!$request instanceof IncomingRequest) {
             return null;
         }
