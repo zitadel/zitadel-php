@@ -122,4 +122,24 @@ final class JwkConverterTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         JwkConverter::toKey(['kty' => 'RSA', 'n' => $n, 'e' => '']);
     }
+
+    /**
+     * base64url values containing characters outside the base64 alphabet must be
+     * rejected immediately. Without strict mode, PHP's base64_decode() silently
+     * skips illegal bytes, which can produce a shorter-than-expected byte string
+     * and a malformed key — or in the worst case a key with fewer bits than intended.
+     */
+    public function testThrowsForInvalidBase64urlInRsaModulus(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        // '!' is not a valid base64url character.
+        JwkConverter::toKey(['kty' => 'RSA', 'n' => 'abc!def', 'e' => 'AQAB']);
+    }
+
+    public function testThrowsForInvalidBase64urlInEcCoordinate(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        // '!' is not a valid base64url character.
+        JwkConverter::toKey(['kty' => 'EC', 'crv' => 'P-256', 'x' => 'abc!def', 'y' => 'AQAB']);
+    }
 }

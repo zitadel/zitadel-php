@@ -180,4 +180,109 @@ final class PkceStateCookieTest extends TestCase
         $header = $response->getHeaderLine('Set-Cookie');
         self::assertStringContainsString('Max-Age=0', $header);
     }
+
+    // ---------------------------------------------------------------------------
+    // decrypt() — strict base64 with invalid characters
+    // ---------------------------------------------------------------------------
+
+    /**
+     * `decrypt()` calls `base64_decode(..., true)` (strict mode). A cookie value
+     * that contains characters outside the base64 alphabet (e.g. `!`) but is
+     * otherwise the right length must return null rather than silently decoding
+     * with the offending byte stripped.
+     *
+     * This matches the same guard already present in `TokenValidator`'s
+     * `base64urlDecode()` and ensures the cookie layer is equally strict.
+     */
+    public function testDecryptReturnsNullForStrictBase64InvalidChars(): void
+    {
+        // Produce a valid ciphertext so we know the payload length is big enough
+        // to pass the NPUBBYTES length check, then splice in an invalid character.
+        $valid = PkceStateCookie::encrypt('verifier', 'state', '/next', $this->secret);
+
+        // Replace a character in the middle with '!' which is not in the
+        // base64url alphabet — strict mode must reject the whole string.
+        $corrupted = substr($valid, 0, 10) . '!' . substr($valid, 11);
+
+        self::assertNull(PkceStateCookie::decrypt($corrupted, $this->secret));
+    }
+
+    /**
+     * A cookie value that is shorter than the XChaCha20 nonce length after
+     * decoding must return null — there can be no ciphertext at all.
+     */
+    public function testDecryptReturnsNullForTooShortValue(): void
+    {
+        // Encode just a few bytes — far shorter than SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES (24)
+        $short = rtrim(strtr(base64_encode('short'), '+/', '-_'), '=');
+
+        self::assertNull(PkceStateCookie::decrypt($short, $this->secret));
+    }
+
+    // ---------------------------------------------------------------------------
+    // write() — cookie attributes
+    // ---------------------------------------------------------------------------
+
+    /**
+     * write() must include a SameSite=Lax attribute. Without it some browsers
+     * refuse to send the cookie in the cross-site redirect that is the heart of
+     * the PKCE flow.
+     */
+    public function testWriteIncludesSameSiteLax(): void
+    {
+        $response = PkceStateCookie::write(
+            new Response(200),
+            'verifier',
+            'state',
+            '/next',
+            $this->secret,
+            false,
+        );
+
+        self::assertStringContainsString('SameSite=Lax', $response->getHeaderLine('Set-Cookie'));
+    }
+
+    /**
+     * write() must include HttpOnly so JavaScript running in the page cannot
+     * read the PKCE state cookie, limiting the impact of XSS vulnerabilities.
+     */
+    public function testWriteIncludesHttpOnly(): void
+    {
+        $response = PkceStateCookie::write(
+            new Response(200),
+            'verifier',
+            'state',
+            '/next',
+            $this->secret,
+            false,
+        );
+
+        self::assertStringContainsString('HttpOnly', $response->getHeaderLine('Set-Cookie'));
+    }
+
+    // ---------------------------------------------------------------------------
+    // read() — cookie present and valid
+    // ---------------------------------------------------------------------------
+
+    /**
+     * read() must decrypt the cookie when it is present in the request and the
+     * secret is correct, returning the original payload.
+     */
+    public function testReadReturnsCookiePayloadWhenPresent(): void
+    {
+        $verifier = 'my-verifier';
+        $state    = 'my-state';
+        $next     = '/original-path?q=1';
+
+        $value   = PkceStateCookie::encrypt($verifier, $state, $next, $this->secret);
+        $request = (new ServerRequest('GET', 'https://myapp.com/'))
+            ->withCookieParams(['__nextgen_pkce' => $value]);
+
+        $result = PkceStateCookie::read($request, $this->secret);
+
+        self::assertNotNull($result);
+        self::assertSame($verifier, $result['verifier']);
+        self::assertSame($state, $result['state']);
+        self::assertSame($next, $result['next']);
+    }
 }

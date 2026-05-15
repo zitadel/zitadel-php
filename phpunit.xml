@@ -5,7 +5,9 @@
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.5/phpunit.xsd"
          cacheResult="false"
          displayDetailsOnTestsThatTriggerDeprecations="true"
-         displayDetailsOnTestsThatTriggerWarnings="true">
+         displayDetailsOnTestsThatTriggerWarnings="true"
+         failOnWarning="true"
+         defaultTestSuite="tests">
   <extensions>
     <bootstrap class="Zitadel\Sdk\Spec\Setup"/>
     <bootstrap class="Mridang\PHPUnitReporters\JestReporterExtension">

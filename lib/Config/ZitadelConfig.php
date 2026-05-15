@@ -198,6 +198,19 @@ readonly class ZitadelConfig
                     "Received: \"{$value}\"."
                 );
             }
+            if (strlen($value) > 1 && str_ends_with($value, '/')) {
+                throw new \InvalidArgumentException(
+                    "[zitadel] {$name} must not have a trailing slash. " .
+                    "Received: \"{$value}\"."
+                );
+            }
+        }
+
+        if ($callbackPath === $logoutPath) {
+            throw new \InvalidArgumentException(
+                '[zitadel] callbackPath and logoutPath must be different paths. ' .
+                "Both are set to \"{$callbackPath}\"."
+            );
         }
 
         foreach (['postLoginRedirect' => $postLoginRedirect, 'postLogoutRedirect' => $postLogoutRedirect] as $name => $value) {
@@ -206,6 +219,30 @@ readonly class ZitadelConfig
                     "[zitadel] {$name} must be a relative path starting with a single \"/\". " .
                     "Received: \"{$value}\". Using an absolute or protocol-relative URL " .
                     'would allow open-redirect attacks.'
+                );
+            }
+        }
+
+        foreach (['jwksPath' => $jwksPath, 'authorizationPath' => $authorizationPath, 'tokenPath' => $tokenPath, 'endSessionPath' => $endSessionPath] as $name => $value) {
+            if (!str_starts_with($value, '/') || str_starts_with($value, '//')) {
+                throw new \InvalidArgumentException(
+                    "[zitadel] {$name} must be a relative path starting with a single \"/\". " .
+                    "Received: \"{$value}\"."
+                );
+            }
+        }
+
+        if ($scopes === []) {
+            throw new \InvalidArgumentException(
+                '[zitadel] scopes must not be empty. Include at least "openid" for OIDC.'
+            );
+        }
+
+        foreach ($ignoredRoutes as $route) {
+            if (!is_string($route) || (!str_starts_with($route, '/') || str_starts_with($route, '//'))) {
+                throw new \InvalidArgumentException(
+                    "[zitadel] Each entry in ignoredRoutes must be a relative path starting with a single \"/\". " .
+                    "Received: \"{$route}\"."
                 );
             }
         }

@@ -595,6 +595,181 @@ final class TokenValidatorTest extends TestCase
         self::assertNull($claims->email);
     }
 
+    // ---------------------------------------------------------------------------
+    // Step 10 — getPublicKey returns null (no matching key available)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * When the JWKS cache (or a failed fetch with no stale fallback) returns null,
+     * the validator must reject the token at step 10 rather than trying to verify
+     * a signature with a null key.
+     */
+    public function testReturnsNullWhenPublicKeyIsNotAvailable(): void
+    {
+        // Build a syntactically valid, correctly signed token, but hand the
+        // validator a cache stub that always returns null — simulating a JWKS
+        // endpoint that is unreachable with no stale key cached yet.
+        [$token, ] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+        ]);
+
+        $nullCache = new class implements \Zitadel\Sdk\Auth\JwksCacheInterface {
+            #[\Override]
+            public function getPublicKey(
+                string $jwksUri,
+                ?string $kid,
+                string $alg,
+                int $ttlSeconds,
+                int $timeoutSeconds,
+            ): ?\OpenSSLAsymmetricKey {
+                return null;
+            }
+
+            #[\Override]
+            public function clearCache(): void
+            {
+            }
+        };
+
+        self::assertNull((new TokenValidator($this->config, $nullCache))->validate($token));
+    }
+
+    // ---------------------------------------------------------------------------
+    // Step 17 — sub claim empty string
+    // ---------------------------------------------------------------------------
+
+    /**
+     * A token whose `sub` claim is an empty string must be rejected.
+     * An empty subject provides no identity information and would cause any
+     * downstream code that keys on the subject to behave incorrectly.
+     */
+    public function testReturnsNullForEmptySub(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => '',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+        ]);
+
+        self::assertNull((new TokenValidator($this->config, $mockCache))->validate($token));
+    }
+
+    /**
+     * A token whose `sub` claim is missing entirely must be rejected.
+     */
+    public function testReturnsNullForMissingSub(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+        ]);
+
+        self::assertNull((new TokenValidator($this->config, $mockCache))->validate($token));
+    }
+
+    // ---------------------------------------------------------------------------
+    // given_name / family_name claims — coercion when not a string
+    // ---------------------------------------------------------------------------
+
+    /**
+     * When `given_name` or `family_name` in the JWT payload is not a string,
+     * the validator must coerce it to null on the returned Claims object.
+     */
+    public function testGivenNameAndFamilyNameCoercedToNullWhenNotString(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub'         => 'u',
+            'iss'         => 'https://example.zitadel.cloud',
+            'exp'         => time() + 3600,
+            'iat'         => time(),
+            'given_name'  => 42,
+            'family_name' => false,
+        ]);
+
+        $claims = (new TokenValidator($this->config, $mockCache))->validate($token);
+        self::assertInstanceOf(Claims::class, $claims);
+        self::assertNull($claims->givenName);
+        self::assertNull($claims->familyName);
+    }
+
+    /**
+     * When `given_name` and `family_name` are valid strings they must be
+     * returned unchanged in the Claims object.
+     */
+    public function testGivenNameAndFamilyNameReturnedWhenStrings(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub'         => 'u',
+            'iss'         => 'https://example.zitadel.cloud',
+            'exp'         => time() + 3600,
+            'iat'         => time(),
+            'given_name'  => 'Jane',
+            'family_name' => 'Doe',
+        ]);
+
+        $claims = (new TokenValidator($this->config, $mockCache))->validate($token);
+        self::assertInstanceOf(Claims::class, $claims);
+        self::assertSame('Jane', $claims->givenName);
+        self::assertSame('Doe', $claims->familyName);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Step 11 — tampered signature (valid key, wrong signature bytes)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * A token whose signature has been replaced entirely must be rejected at
+     * step 11 even when every other field is correct and the public key is found.
+     * This test confirms the openssl_verify() !== 1 branch.
+     *
+     * We replace the whole signature with a base64url-encoded string of zero
+     * bytes to ensure the change is unambiguous — a single-character flip at
+     * the trailing position can land on padding bits and leave the decoded value
+     * unchanged for certain base64url strings.
+     */
+    public function testRejectsTokenWithTamperedSignature(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'exp' => time() + 3600,
+            'iat' => time(),
+        ]);
+
+        // Replace the signature segment with 256 zero bytes (RSA-2048 sig size).
+        $parts    = explode('.', $token);
+        $parts[2] = rtrim(strtr(base64_encode(str_repeat("\x00", 256)), '+/', '-_'), '=');
+        $tamperedToken = implode('.', $parts);
+
+        self::assertNull((new TokenValidator($this->config, $mockCache))->validate($tamperedToken));
+    }
+
+    // ---------------------------------------------------------------------------
+    // exp — missing exp claim
+    // ---------------------------------------------------------------------------
+
+    /**
+     * A token without an `exp` claim must be rejected. The validator requires
+     * exp to be a present integer, so a missing exp (null) fails the `is_int`
+     * check at step 14.
+     */
+    public function testReturnsNullForMissingExp(): void
+    {
+        [$token, $mockCache] = $this->buildRs256Token([
+            'sub' => 'u',
+            'iss' => 'https://example.zitadel.cloud',
+            'iat' => time(),
+            // no 'exp' key
+        ]);
+
+        self::assertNull((new TokenValidator($this->config, $mockCache))->validate($token));
+    }
+
     /**
      * @param array<string, mixed> $claims
      * @return array{0: string, 1: \Zitadel\Sdk\Auth\JwksCacheInterface}

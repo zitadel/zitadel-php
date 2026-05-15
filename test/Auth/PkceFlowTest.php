@@ -238,4 +238,49 @@ final class PkceFlowTest extends TestCase
 
         self::assertSame('id.payload.signature', PkceFlow::selectToken($tokens));
     }
+
+    // ---------------------------------------------------------------------------
+    // buildAuthorizationUrl — empty scopes
+    // ---------------------------------------------------------------------------
+
+    /**
+     * An empty `scopes` array must be rejected by the ZitadelConfig constructor.
+     * An empty scope list would produce `scope=` in the authorization URL, which
+     * OIDC providers reject; surfacing the error at construction time is cleaner.
+     */
+    public function testZitadelConfigThrowsForEmptyScopes(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/scopes/i');
+
+        new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'test-client',
+            redirectUri:  'https://myapp.com/zitadel/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            scopes:       [],
+        );
+    }
+
+    /**
+     * When a single scope is provided it must appear in the URL without a
+     * trailing or leading space.
+     */
+    public function testBuildAuthorizationUrlWithSingleScope(): void
+    {
+        $config = new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'test-client',
+            redirectUri:  'https://myapp.com/zitadel/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            scopes:       ['openid'],
+        );
+
+        $url = PkceFlow::buildAuthorizationUrl($config, 'challenge', 'state');
+
+        self::assertStringContainsString('scope=openid', $url);
+        // Must not have a space at the start or end of the scope value.
+        self::assertStringNotContainsString('scope=+', $url);
+        self::assertStringNotContainsString('scope=openid+', $url);
+    }
 }

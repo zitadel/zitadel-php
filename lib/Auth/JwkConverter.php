@@ -152,7 +152,7 @@ final class JwkConverter
     private static function base64urlDecode(string $input): string
     {
         $padded = strtr($input, '-_', '+/') . str_repeat('=', (4 - strlen($input) % 4) % 4);
-        $result = base64_decode($padded);
+        $result = base64_decode($padded, strict: true);
         if ($result === false) {
             throw new \InvalidArgumentException('[zitadel] Invalid base64url encoding in JWK.');
         }
