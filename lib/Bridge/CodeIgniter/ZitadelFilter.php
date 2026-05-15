@@ -38,12 +38,22 @@ use Zitadel\Sdk\Exception\PkceException;
  * `service('router')->controllerName()` returns the FQCN, and
  * `service('router')->methodName()` returns the action name for reflection.
  */
-final readonly class ZitadelFilter implements FilterInterface
+final class ZitadelFilter implements FilterInterface
 {
+    private ZitadelConfig  $config;
+    private TokenValidator $validator;
+
+    /**
+     * Accepts optional explicit dependencies for testing or non-standard bootstrap.
+     * When omitted, pulls `zitadelConfig` and `zitadelValidator` from the CI4
+     * Services container via `service()` — the idiomatic no-arg filter pattern.
+     */
     public function __construct(
-        private ZitadelConfig  $config,
-        private TokenValidator $validator,
+        ?ZitadelConfig  $config    = null,
+        ?TokenValidator $validator = null,
     ) {
+        $this->config    = $config    ?? service('zitadelConfig');
+        $this->validator = $validator ?? service('zitadelValidator');
     }
 
     /**

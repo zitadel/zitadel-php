@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Config;
 
 use CodeIgniter\Config\BaseConfig;
-use App\Filters\ZitadelFilterWrapper;
+use Zitadel\Sdk\Bridge\CodeIgniter\ZitadelFilter;
 
 class Filters extends BaseConfig
 {
     public array $aliases = [
-        'zitadel' => ZitadelFilterWrapper::class,
+        'zitadel' => ZitadelFilter::class,
     ];
 
     public array $globals = [

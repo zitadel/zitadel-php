@@ -7,9 +7,7 @@ use Phalcon\Events\Manager as EventsManager;
 use Phalcon\Autoload\Loader;
 use Phalcon\Mvc\Application;
 use Phalcon\Mvc\View;
-use Zitadel\Sdk\Auth\JwksCache;
-use Zitadel\Sdk\Auth\TokenValidator;
-use Zitadel\Sdk\Bridge\Phalcon\ZitadelPlugin;
+use Zitadel\Sdk\Bridge\Phalcon\ZitadelServiceProvider;
 use Zitadel\Sdk\Config\ZitadelConfig;
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -32,7 +30,7 @@ $di->set('router', function () {
     return require __DIR__ . '/../app/config/router.php';
 }, true);
 
-$config = new ZitadelConfig(
+ZitadelServiceProvider::register($di, new ZitadelConfig(
     issuerUrl:         (string) ($_ENV['ZITADEL_ISSUER_URL']         ?? ''),
     clientId:          (string) ($_ENV['ZITADEL_CLIENT_ID']          ?? ''),
     redirectUri:       (string) ($_ENV['ZITADEL_REDIRECT_URI']       ?? ''),
@@ -43,10 +41,9 @@ $config = new ZitadelConfig(
     authorizationPath: (string) ($_ENV['ZITADEL_AUTHORIZATION_PATH'] ?? '/oauth/v2/authorize'),
     tokenPath:         (string) ($_ENV['ZITADEL_TOKEN_PATH']         ?? '/oauth/v2/token'),
     endSessionPath:    (string) ($_ENV['ZITADEL_END_SESSION_PATH']   ?? '/oidc/v1/end_session'),
-);
+));
 
-$validator = new TokenValidator($config, new JwksCache());
-$plugin    = new ZitadelPlugin($config, $validator);
+$plugin = $di->get('zitadelPlugin');
 
 $eventsManager = new EventsManager();
 $eventsManager->attach('application', $plugin);
