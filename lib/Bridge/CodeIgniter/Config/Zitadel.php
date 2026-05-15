@@ -11,35 +11,33 @@ use Zitadel\Sdk\Auth\TokenType;
 /**
  * Zitadel SDK configuration for CodeIgniter 4.
  *
- * Copy this file to `app/Config/Zitadel.php` in your CI4 project and change the
- * namespace from `Zitadel\Sdk\Bridge\CodeIgniter\Config` to `Config` so that
- * CI4's `config('Zitadel')` helper can locate it by short name. Then adjust
- * `$protectAll` and `$ignoredRoutes` for your application. All credentials are
- * read from environment variables via CI4's `env()` helper, which consults the
- * `.env` file, `getenv()`, `$_ENV`, and `$_SERVER` in that order.
+ * Copy this file to `app/Config/Zitadel.php` in your CI4 project, change the
+ * namespace from `Zitadel\Sdk\Bridge\CodeIgniter\Config` to `Config`, and extend
+ * the base class to override `$protectAll`, `$ignoredRoutes`, or any other property.
  *
- * Register the services in `app/Config/Services.php`:
  * ```php
- * public static function zitadelConfig(bool $getShared = true): ZitadelConfig
+ * namespace Config;
+ * use Zitadel\Sdk\Bridge\CodeIgniter\Config\Zitadel as BaseZitadel;
+ *
+ * class Zitadel extends BaseZitadel
  * {
- *     if ($getShared) {
- *         return static::getSharedInstance('zitadelConfig');
- *     }
- *     $cfg = config('Zitadel');
- *     return new ZitadelConfig(
- *         issuerUrl:         $cfg->issuerUrl,
- *         clientId:          $cfg->clientId,
- *         redirectUri:       $cfg->redirectUri,
- *         cookieSecret:      $cfg->cookieSecret,
- *         protectAll:        $cfg->protectAll,
- *         ignoredRoutes:     $cfg->ignoredRoutes,
- *         jwksPath:          $cfg->jwksPath,
- *         authorizationPath: $cfg->authorizationPath,
- *         tokenPath:         $cfg->tokenPath,
- *         endSessionPath:    $cfg->endSessionPath,
- *     );
+ *     public bool  $protectAll    = true;
+ *     public array $ignoredRoutes = ['/health'];
  * }
  * ```
+ *
+ * That is the only file you need to create. No changes to `Services.php` or
+ * `Filters.php` are required:
+ *
+ * - **Filter auto-registration** — {@see \Zitadel\Sdk\Config\Registrar} hooks into
+ *   CI4's Composer module discovery and registers `ZitadelFilter` as a global
+ *   `before` filter automatically.
+ *
+ * - **Self-configuration** — `ZitadelFilter` calls `config('Zitadel')` internally
+ *   when instantiated without arguments, resolving your subclass first.
+ *
+ * All credentials are read from environment variables via CI4's `env()` helper,
+ * which consults `.env`, `getenv()`, `$_ENV`, and `$_SERVER` in that order.
  */
 class Zitadel extends BaseConfig
 {

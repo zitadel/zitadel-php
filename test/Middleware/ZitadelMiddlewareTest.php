@@ -76,7 +76,7 @@ final class ZitadelMiddlewareTest extends TestCase
     private function buildValidator(?Claims $claims, ?ZitadelConfig $config = null): TokenValidator
     {
         $cache  = $this->noopCache();
-        $config = $config ?? $this->config;
+        $config ??= $this->config;
 
         return new readonly class ($config, $cache, $claims) extends TokenValidator {
             public function __construct(

@@ -83,7 +83,7 @@ readonly class CallbackController
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
-        } catch (PkceException $e) {
+        } catch (PkceException) {
             return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.')
                 ->withCookie($deletePkce);
         }

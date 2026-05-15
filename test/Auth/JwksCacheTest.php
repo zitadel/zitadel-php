@@ -503,15 +503,13 @@ final class JwksCacheTest extends TestCase
         self::assertNotFalse($d2);
         self::assertNotFalse($d3);
 
-        $toJwk = static function (array $d, string $kid): array {
-            return [
-                'kty' => 'RSA',
-                'kid' => $kid,
-                'use' => 'sig',
-                'n'   => rtrim(strtr(base64_encode($d['rsa']['n']), '+/', '-_'), '='),
-                'e'   => rtrim(strtr(base64_encode($d['rsa']['e']), '+/', '-_'), '='),
-            ];
-        };
+        $toJwk = (static fn (array $d, string $kid): array => [
+            'kty' => 'RSA',
+            'kid' => $kid,
+            'use' => 'sig',
+            'n'   => rtrim(strtr(base64_encode($d['rsa']['n']), '+/', '-_'), '='),
+            'e'   => rtrim(strtr(base64_encode($d['rsa']['e']), '+/', '-_'), '='),
+        ]);
 
         $jwks = ['keys' => [
             $toJwk($d1, 'kid-1'),

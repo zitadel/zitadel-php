@@ -353,7 +353,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
-        } catch (PkceException $e) {
+        } catch (PkceException) {
             $response = $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
             $response->headers->setCookie($pkceDeleteCookie);
             return $response;

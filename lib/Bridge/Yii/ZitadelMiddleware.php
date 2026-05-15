@@ -324,7 +324,7 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
-        } catch (\Zitadel\Sdk\Exception\PkceException $e) {
+        } catch (\Zitadel\Sdk\Exception\PkceException) {
             return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.')
                 ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
         }

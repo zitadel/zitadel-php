@@ -6,72 +6,111 @@ namespace Zitadel\Sdk\Bridge\CodeIgniter;
 
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\IncomingRequest;
-use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\RequestInterface;
-use CodeIgniter\HTTP\Response;
 use CodeIgniter\HTTP\ResponseInterface;
 use Zitadel\Sdk\Attribute\AllowAnonymous;
 use Zitadel\Sdk\Auth\HttpProxy;
+use Zitadel\Sdk\Auth\JwksCache;
 use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
+use Zitadel\Sdk\Bridge\CodeIgniter\Config\Zitadel as ZitadelCIConfig;
 use Zitadel\Sdk\Config\ZitadelConfig;
 use Zitadel\Sdk\Exception\PkceException;
 
 /**
- * CI4 filter that owns the complete Zitadel authentication lifecycle.
+ * Post-routing CI4 filter that enforces authentication on every matched route.
  *
- * Register in `app/Config/Filters.php`:
- * ```php
- * public array $aliases = ['zitadel' => ZitadelFilter::class];
- * public array $globals = ['before' => ['zitadel']];
- * ```
+ * Registered in `$globals['before']` via {@see \Zitadel\Sdk\Config\Registrar},
+ * this filter runs after CI4's router has resolved the controller. It handles the
+ * full authentication pipeline:
  *
- * No custom routes are needed. The filter intercepts the callback and logout
- * paths before CI4's router runs by returning a {@see ResponseInterface} from
- * `before()`, which short-circuits dispatch entirely.
+ * - Ignored routes are passed through without any token check.
+ * - A `Bearer` header or `__nextgen_auth` cookie is validated as a JWT.
+ * - `#[AllowAnonymous]` on the matched controller class or action allows access
+ *   without a valid token (requires a resolved controller, hence post-routing only).
+ * - Protected routes (or all routes when `$protectAll` is `true`) redirect to
+ *   Zitadel's authorization endpoint via the PKCE flow.
+ *
+ * The SDK's own HTTP paths (proxy, callback, logout) are handled before routing by
+ * {@see ZitadelPreFilter} and never reach this filter.
  *
  * After successful validation, authenticated claims are stored in
  * {@see ZitadelHolder} for controller access via `ZitadelHolder::claims()`.
  *
- * `#[AllowAnonymous]` is supported: after routing resolves the controller,
- * `service('router')->controllerName()` returns the FQCN, and
- * `service('router')->methodName()` returns the action name for reflection.
+ * This filter is completely stateless — no instance variables are mutated between
+ * calls. It is safe for use in persistent PHP processes (FrankenPHP, Swoole,
+ * RoadRunner) without any per-request reset logic.
  */
-final class ZitadelFilter implements FilterInterface
+class ZitadelFilter implements FilterInterface
 {
-    private ZitadelConfig  $config;
-    private TokenValidator $validator;
+    protected ZitadelConfig  $config;
+    protected TokenValidator $validator;
 
     /**
-     * Accepts optional explicit dependencies for testing or non-standard bootstrap.
-     * When omitted, pulls `zitadelConfig` and `zitadelValidator` from the CI4
-     * Services container via `service()` — the idiomatic no-arg filter pattern.
+     * Accepts optional explicit dependencies for testing or advanced DI usage.
+     *
+     * When omitted, the filter self-configures: it calls `config('Zitadel')` to
+     * obtain the application's {@see ZitadelCIConfig} instance (CI4 resolves the
+     * developer's `app/Config/Zitadel.php` override first, then falls back to the
+     * SDK base class), maps every property onto a {@see ZitadelConfig} value object,
+     * and creates a default {@see TokenValidator} backed by a {@see JwksCache}.
+     *
+     * This means no `Services.php` factories are required for standard usage.
      */
     public function __construct(
         ?ZitadelConfig  $config    = null,
         ?TokenValidator $validator = null,
     ) {
-        $this->config    = $config    ?? service('zitadelConfig');
-        $this->validator = $validator ?? service('zitadelValidator');
+        if ($config === null) {
+            /** @var ZitadelCIConfig $cfg */
+            $cfg    = config('Zitadel');
+            $config = new ZitadelConfig(
+                issuerUrl:          $cfg->issuerUrl,
+                clientId:           $cfg->clientId,
+                redirectUri:        $cfg->redirectUri,
+                cookieSecret:       $cfg->cookieSecret,
+                callbackPath:       $cfg->callbackPath,
+                logoutPath:         $cfg->logoutPath,
+                proxyPath:          $cfg->proxyPath,
+                postLoginRedirect:  $cfg->postLoginRedirect,
+                postLogoutRedirect: $cfg->postLogoutRedirect,
+                protectAll:         $cfg->protectAll,
+                ignoredRoutes:      $cfg->ignoredRoutes,
+                protectedRoutes:    $cfg->protectedRoutes,
+                jwksPath:           $cfg->jwksPath,
+                authorizationPath:  $cfg->authorizationPath,
+                tokenPath:          $cfg->tokenPath,
+                endSessionPath:     $cfg->endSessionPath,
+                scopes:             $cfg->scopes,
+                allowedAlgorithms:  $cfg->allowedAlgorithms,
+                allowedTokenTypes:  $cfg->allowedTokenTypes,
+                audience:           $cfg->audience,
+                clockSkewSeconds:   $cfg->clockSkewSeconds,
+                jwksTtlSeconds:     $cfg->jwksTtlSeconds,
+                httpTimeoutSeconds: $cfg->httpTimeoutSeconds,
+            );
+        }
+        $this->config    = $config;
+        $this->validator = $validator ?? new TokenValidator($this->config, new JwksCache());
     }
 
     /**
-     * Intercepts the request before routing.
+     * Enforces authentication after the router has resolved the controller.
      *
-     * Returns a CI4 `ResponseInterface` to short-circuit when handling the
-     * callback, logout, or a protected-route redirect. Returns null to pass
-     * control to the router for all other requests.
+     * This method is called by CI4 for every request whose URI matches a registered
+     * route. SDK-owned paths (proxy, callback, logout) are handled before routing by
+     * {@see ZitadelPreFilter} and never arrive here.
      *
-     * @param RequestInterface $request   The incoming HTTP request.
-     * @param array<mixed>|null $arguments Optional filter arguments (unused).
-     * @return ResponseInterface|null Response to short-circuit, or null to continue routing.
+     * @param RequestInterface  $request   The incoming HTTP request.
+     * @param array<mixed>|null $arguments Unused.
+     * @return ResponseInterface|null Redirect to authorise, or null to continue.
      */
     #[\Override]
     public function before(RequestInterface $request, $arguments = null): ?ResponseInterface
     {
-        // Always reset at the start of every request so that stale claims from a
-        // previous request on the same PHP-FPM worker can never leak into this one.
+        // Reset on every call so stale claims from a previous request on the same
+        // worker cannot leak into this one.
         ZitadelHolder::set(null);
 
         if (!$request instanceof IncomingRequest) {
@@ -80,28 +119,12 @@ final class ZitadelFilter implements FilterInterface
 
         $path = '/' . ltrim($request->getPath(), '/');
 
-        // Handle proxy (before callback/logout — filter fires before routing)
-        if (HttpProxy::isProxyPath($path, $this->config->proxyPath)) {
-            return $this->handleProxy($request);
-        }
-
-        // Handle callback
-        if ($path === $this->config->callbackPath) {
-            return $this->handleCallback($request);
-        }
-
-        // Handle logout
-        if ($path === $this->config->logoutPath) {
-            return $this->handleLogout($request);
-        }
-
-        // Ignored routes pass through
+        // Ignored routes pass through without any token check.
         if ($this->matchesRoutes($path, $this->config->ignoredRoutes)) {
-            ZitadelHolder::set(null);
             return null;
         }
 
-        // Extract token (Bearer wins over cookie)
+        // Extract token — Bearer header wins over cookie.
         $bearer = $request->getHeaderLine('Authorization');
         $token  = null;
         if (str_starts_with($bearer, 'Bearer ')) {
@@ -117,13 +140,12 @@ final class ZitadelFilter implements FilterInterface
             return null;
         }
 
-        // Check #[AllowAnonymous] on the resolved controller method or class
+        // #[AllowAnonymous] requires a resolved controller — only available post-routing.
         if ($this->hasAllowAnonymous()) {
-            ZitadelHolder::set(null);
             return null;
         }
 
-        // Protect route
+        // Redirect unauthenticated requests on protected routes.
         if ($this->config->protectAll || $this->matchesRoutes($path, $this->config->protectedRoutes)) {
             $verifier  = PkceFlow::generateCodeVerifier();
             $state     = PkceFlow::generateState();
@@ -146,9 +168,9 @@ final class ZitadelFilter implements FilterInterface
                 '__nextgen_pkce',
                 $cookie,
                 600,
-                '',     // domain
-                '/',    // path
-                '',     // prefix
+                '',
+                '/',
+                '',
                 $request->isSecure(),
                 true,
                 'Lax'
@@ -157,10 +179,9 @@ final class ZitadelFilter implements FilterInterface
             return $response;
         }
 
-        // Public unauthenticated — delete stale __nextgen* cookies
-        ZitadelHolder::set(null);
+        // Public unauthenticated request — scrub any stale SDK cookies.
         $response = service('response');
-        foreach ($request->getCookieNames() as $name) {
+        foreach (array_keys((array) $request->getCookie()) as $name) {
             if (str_starts_with((string) $name, '__nextgen')) {
                 $response->deleteCookie((string) $name, '', '/');
             }
@@ -196,7 +217,7 @@ final class ZitadelFilter implements FilterInterface
      * @param IncomingRequest $request The incoming proxy request.
      * @return ResponseInterface The upstream response (or 502 on failure).
      */
-    private function handleProxy(IncomingRequest $request): ResponseInterface
+    protected function handleProxy(IncomingRequest $request): ResponseInterface
     {
         $proxyPath = rtrim($this->config->proxyPath, '/');
         $suffix    = substr('/' . ltrim($request->getPath(), '/'), strlen($proxyPath));
@@ -220,8 +241,6 @@ final class ZitadelFilter implements FilterInterface
         $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
         $host       = $_SERVER['HTTP_HOST'] ?? $request->getUri()->getHost();
         $proto      = $request->getUri()->getScheme();
-        // Mirror Next.js/Nuxt behavior: consider X-Forwarded-Proto so that session
-        // cookies get the Secure flag even when TLS is terminated at a load balancer.
         $isSecure   = $request->isSecure()
             || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
 
@@ -265,7 +284,7 @@ final class ZitadelFilter implements FilterInterface
      * @param IncomingRequest $request The callback request containing `code` and `state` query params.
      * @return ResponseInterface Redirect with `__nextgen_auth` cookie set, or a 400 error response.
      */
-    private function handleCallback(IncomingRequest $request): ResponseInterface
+    protected function handleCallback(IncomingRequest $request): ResponseInterface
     {
         $pkceValue = $request->getCookie('__nextgen_pkce');
         if (!is_string($pkceValue) || $pkceValue === '') {
@@ -298,7 +317,7 @@ final class ZitadelFilter implements FilterInterface
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
-        } catch (PkceException $e) {
+        } catch (PkceException) {
             $response = $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
             $response->deleteCookie('__nextgen_pkce', '', '/');
             return $response;
@@ -335,13 +354,13 @@ final class ZitadelFilter implements FilterInterface
      * @param IncomingRequest $request The logout request (used to determine scheme for cookie flags).
      * @return ResponseInterface Redirect to the OIDC end-session endpoint with the auth cookie deleted.
      */
-    private function handleLogout(IncomingRequest $request): ResponseInterface
+    protected function handleLogout(IncomingRequest $request): ResponseInterface
     {
         $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);
         $response = response()->redirect($this->config->endSessionEndpoint() . '?' . $params);
         $response->setCookie('__nextgen_auth', '', 1, '', '/', '', $request->isSecure(), true, 'Lax');
 
-        foreach ($request->getCookieNames() as $name) {
+        foreach (array_keys((array) $request->getCookie()) as $name) {
             if (str_starts_with((string) $name, '__nextgen') && (string) $name !== '__nextgen_auth') {
                 $response->deleteCookie((string) $name, '', '/');
             }
@@ -359,7 +378,7 @@ final class ZitadelFilter implements FilterInterface
     private function hasAllowAnonymous(): bool
     {
         try {
-            $router = service('router');
+            $router          = service('router');
             $controllerClass = $router->controllerName();
             $actionMethod    = $router->methodName();
         } catch (\Throwable) {
@@ -416,15 +435,12 @@ final class ZitadelFilter implements FilterInterface
      * @param string $next The candidate redirect path from the PKCE state cookie.
      * @return string|null The sanitized path, or null if the input is unsafe.
      */
-    private function sanitizeNext(string $next): ?string
+    protected function sanitizeNext(string $next): ?string
     {
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
             return null;
         }
 
-        // Reject paths that decode to a protocol-relative URL.
-        // A raw path of "/%2F/evil.com" starts with "/" and passes the literal
-        // "//" check, but decodes to "//evil.com" — an open redirect.
         if (str_starts_with(rawurldecode($next), '//')) {
             return null;
         }
@@ -446,7 +462,7 @@ final class ZitadelFilter implements FilterInterface
      * @param string $message The authentication error description shown to the user.
      * @return ResponseInterface A 400 response with `Content-Type: text/html; charset=utf-8`.
      */
-    private function badRequest(string $message): ResponseInterface
+    protected function badRequest(string $message): ResponseInterface
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'
             . '<h1>Authentication Error</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'

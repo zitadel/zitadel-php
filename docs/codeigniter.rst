@@ -42,66 +42,38 @@ Generate a secure cookie secret (64 hex characters):
 Configuration
 -------------
 
-Service Container
-~~~~~~~~~~~~~~~~~
+Copy the SDK's base config into your application so CI4 can find it by short name,
+then change the namespace from ``Zitadel\Sdk\Bridge\CodeIgniter\Config`` to ``Config``:
 
-Register the middleware dependencies in ``app/Config/Services.php``:
+.. code-block:: bash
 
-.. code-block:: php
+   cp vendor/zitadel/sdk/lib/Bridge/CodeIgniter/Config/Zitadel.php app/Config/Zitadel.php
 
-   use CodeIgniter\Config\Services as BaseServices;
-   use Zitadel\Sdk\Auth\JwksCache;
-   use Zitadel\Sdk\Auth\TokenValidator;
-   use Zitadel\Sdk\Bridge\CodeIgniter\ZitadelFilter;
-   use Zitadel\Sdk\Config\ZitadelConfig;
-
-   class Services extends BaseServices
-   {
-       public static function zitadelConfig(bool $getShared = true): ZitadelConfig
-       {
-           if ($getShared) {
-               return static::getSharedInstance('zitadelConfig');
-           }
-           return new ZitadelConfig(
-               issuerUrl:     env('ZITADEL_ISSUER_URL'),
-               clientId:      env('ZITADEL_CLIENT_ID'),
-               redirectUri:   env('ZITADEL_REDIRECT_URI'),
-               cookieSecret:  env('ZITADEL_COOKIE_SECRET'),
-               protectAll:    true,
-               ignoredRoutes: ['/health'],
-           );
-       }
-
-       public static function zitadelFilter(bool $getShared = true): ZitadelFilter
-       {
-           if ($getShared) {
-               return static::getSharedInstance('zitadelFilter');
-           }
-           $config = static::zitadelConfig(false);
-           return new ZitadelFilter($config, new TokenValidator($config, new JwksCache()));
-       }
-   }
-
-Filter Registration
-~~~~~~~~~~~~~~~~~~~
-
-Register :php:class:`Zitadel\Sdk\Bridge\CodeIgniter\ZitadelFilter` as a global
-``before`` filter in ``app/Config/Filters.php``:
+Edit ``app/Config/Zitadel.php``:
 
 .. code-block:: php
 
-   use Zitadel\Sdk\Bridge\CodeIgniter\ZitadelFilter;
+   namespace Config;                        // ← change only this line
 
-   class Filters extends BaseFilters
+   use Zitadel\Sdk\Bridge\CodeIgniter\Config\Zitadel as BaseZitadel;
+
+   class Zitadel extends BaseZitadel
    {
-       public array $aliases = [
-           'zitadel' => ZitadelFilter::class,
-       ];
-
-       public array $globals = [
-           'before' => ['zitadel'],
-       ];
+       public bool  $protectAll    = true;
+       public array $ignoredRoutes = ['/health'];
    }
+
+That is everything. No changes to ``Services.php`` or ``Filters.php`` are needed:
+
+- **Filter auto-registration** — the SDK ships a ``Config\Registrar`` class that CI4
+  discovers automatically (via ``Config\Modules::$discoverInComposer``, on by default
+  in all CI4 4.x projects). It registers :php:class:`Zitadel\Sdk\Bridge\CodeIgniter\ZitadelFilter`
+  as a global ``before`` filter without any edits to your ``app/Config/Filters.php``.
+
+- **Self-configuration** — when CI4 instantiates ``ZitadelFilter`` with no constructor
+  arguments, the filter calls ``config('Zitadel')`` internally to build its own
+  ``ZitadelConfig`` value object. Your ``app/Config/Zitadel.php`` subclass is resolved
+  first; the SDK base class defaults serve as the fallback.
 
 No custom routes are needed. When the filter handles the callback or logout path, it
 returns a ``ResponseInterface`` directly, short-circuiting CI4's dispatch pipeline
@@ -114,28 +86,29 @@ Protecting Routes
 Protect all routes (recommended)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Set ``protectAll`` to ``true`` and list public paths in ``ignoredRoutes``:
+Set ``$protectAll`` to ``true`` and list public paths in ``$ignoredRoutes`` in
+``app/Config/Zitadel.php``:
 
 .. code-block:: php
 
-   new ZitadelConfig(
-       // ...
-       protectAll:    true,
-       ignoredRoutes: ['/health', '/public/*'],
-   );
+   class Zitadel extends BaseZitadel
+   {
+       public bool  $protectAll    = true;
+       public array $ignoredRoutes = ['/health', '/public/*'];
+   }
 
 Protect specific routes
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Leave ``protectAll`` unset (defaults to ``false``) and enumerate paths in
-``protectedRoutes``:
+Leave ``$protectAll`` at its default (``false``) and enumerate protected paths in
+``$protectedRoutes``:
 
 .. code-block:: php
 
-   new ZitadelConfig(
-       // ...
-       protectedRoutes: ['/dashboard*', '/admin*'],
-   );
+   class Zitadel extends BaseZitadel
+   {
+       public array $protectedRoutes = ['/dashboard*', '/admin*'];
+   }
 
 
 Accessing Claims
@@ -173,16 +146,15 @@ Opting Out
 Per-path (configuration)
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Add paths to ``ignoredRoutes`` when constructing
-:php:class:`Zitadel\Sdk\Config\ZitadelConfig`:
+Add paths to ``$ignoredRoutes`` in ``app/Config/Zitadel.php``:
 
 .. code-block:: php
 
-   new ZitadelConfig(
-       // ...
-       protectAll:    true,
-       ignoredRoutes: ['/health', '/public/*'],
-   );
+   class Zitadel extends BaseZitadel
+   {
+       public bool  $protectAll    = true;
+       public array $ignoredRoutes = ['/health', '/public/*'];
+   }
 
 Per-controller or per-method
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

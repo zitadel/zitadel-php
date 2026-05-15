@@ -281,7 +281,6 @@ abstract class AbstractIntegrationSpec extends TestCase
         ]);
         $body     = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         self::assertNotFalse($body, '/__nextgen/jwks must be reachable through the proxy');
         self::assertSame(200, $httpCode, '/__nextgen/jwks must proxy to the upstream JWKS endpoint and return 200');
@@ -306,7 +305,6 @@ abstract class AbstractIntegrationSpec extends TestCase
         ]);
         $body     = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         self::assertNotFalse($body, '/__nextgen/jwks?use=sig must be reachable');
         self::assertSame(200, $httpCode, 'Proxy must forward query string and upstream must still return 200');
@@ -333,7 +331,6 @@ abstract class AbstractIntegrationSpec extends TestCase
         $raw        = curl_exec($ch);
         $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
         $httpCode   = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         self::assertNotFalse($raw);
 
@@ -374,7 +371,6 @@ abstract class AbstractIntegrationSpec extends TestCase
         ]);
         $body     = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         self::assertNotFalse($body, 'POST /__nextgen/token must be reachable through the proxy');
         // 502 means the proxy itself failed — the POST body did not reach upstream.
@@ -401,7 +397,6 @@ abstract class AbstractIntegrationSpec extends TestCase
         ]);
         $raw        = curl_exec($ch);
         $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-        curl_close($ch);
 
         self::assertNotFalse($raw);
         $rawHeaders = strtolower(substr((string) $raw, 0, $headerSize));
@@ -502,7 +497,6 @@ abstract class AbstractIntegrationSpec extends TestCase
         ]);
         $body     = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         self::assertNotFalse($body, 'Callback endpoint must be reachable');
         self::assertSame(400, $httpCode, 'Callback without PKCE cookie must return 400 Bad Request');
@@ -532,7 +526,6 @@ abstract class AbstractIntegrationSpec extends TestCase
         ]);
         $body     = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         self::assertNotFalse($body, 'Callback endpoint must be reachable with an OAuth error parameter');
         self::assertSame(400, $httpCode, 'Callback with OAuth error and no PKCE cookie must return 400');

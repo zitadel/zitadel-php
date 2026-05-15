@@ -288,7 +288,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
 
         try {
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
-        } catch (PkceException $e) {
+        } catch (PkceException) {
             header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
             return $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
         }
