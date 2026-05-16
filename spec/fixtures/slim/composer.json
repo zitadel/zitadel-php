@@ -1,0 +1,34 @@
+{
+    "name": "zitadel/sdk-fixture-slim",
+    "description": "Slim 4 fixture app for Zitadel PHP SDK integration specs",
+    "type": "project",
+    "license": "Apache-2.0",
+    "require": {
+        "php": "^8.3",
+        "slim/slim": "^4.0",
+        "nyholm/psr7": "^1.0",
+        "nyholm/psr7-server": "^1.0",
+        "vlucas/phpdotenv": "^5.6",
+        "zitadel/sdk": "*@dev"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../..",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "autoload": {},
+    "config": {
+        "platform": {
+            "php": "8.3.0"
+        },
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

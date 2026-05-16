@@ -1,0 +1,33 @@
+{
+    "name": "zitadel/sdk-fixture-mezzio",
+    "description": "Mezzio fixture app for Zitadel PHP SDK integration specs",
+    "type": "project",
+    "license": "Apache-2.0",
+    "require": {
+        "php": "^8.3",
+        "mezzio/mezzio-fastroute": "^3.0",
+        "laminas/laminas-diactoros": "^3.0",
+        "vlucas/phpdotenv": "^5.6",
+        "zitadel/sdk": "*@dev"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../..",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "autoload": {},
+    "config": {
+        "platform": {
+            "php": "8.3.0"
+        },
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
