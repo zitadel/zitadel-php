@@ -11,23 +11,25 @@ use Zitadel\Sdk\Auth\TokenType;
 /**
  * Zitadel SDK configuration for CodeIgniter 4.
  *
- * Copy this file to `app/Config/Zitadel.php` in your CI4 project, change the
- * namespace from `Zitadel\Sdk\Bridge\CodeIgniter\Config` to `Config`, and extend
- * the base class to override `$protectAll`, `$ignoredRoutes`, or any other property.
+ * Run `php spark zitadel:publish` to copy a minimal stub to `app/Config/Zitadel.php`.
+ * The generated file is intentionally empty — all settings are read from environment
+ * variables, so you only need to create the file if you want to override a property in
+ * code rather than via `.env`.
  *
- * ```php
- * namespace Config;
- * use Zitadel\Sdk\Bridge\CodeIgniter\Config\Zitadel as BaseZitadel;
+ * Required environment variables:
+ * - `ZITADEL_ISSUER_URL`   — base URL of your Zitadel instance (no trailing slash)
+ * - `ZITADEL_CLIENT_ID`    — OAuth 2.0 client ID registered in Zitadel
+ * - `ZITADEL_COOKIE_SECRET`— 64-character hex string (`bin2hex(random_bytes(32))`)
+ * - `SERVER_URL`           — base URL of your app (used to derive the redirect URI
+ *                            when `ZITADEL_REDIRECT_URI` is not set explicitly)
  *
- * class Zitadel extends BaseZitadel
- * {
- *     public bool  $protectAll    = true;
- *     public array $ignoredRoutes = ['/health'];
- * }
- * ```
+ * Optional environment variables (all have sensible defaults):
+ * - `ZITADEL_PROTECT_ALL`  — set to `true` to require auth on every route
+ * - `ZITADEL_REDIRECT_URI` — explicit redirect URI (overrides the `SERVER_URL` derivation)
+ * - `ZITADEL_POST_LOGIN_URL` / `ZITADEL_POST_LOGOUT_URL` — redirect paths after auth
+ * - `ZITADEL_CALLBACK_PATH` / `ZITADEL_LOGOUT_PATH` / `ZITADEL_PROXY_PATH`
  *
- * That is the only file you need to create. No changes to `Services.php` or
- * `Filters.php` are required:
+ * No changes to `Services.php` or `Filters.php` are required:
  *
  * - **Filter auto-registration** — {@see \Zitadel\Sdk\Config\Registrar} hooks into
  *   CI4's Composer module discovery and registers `ZitadelFilter` as a global
@@ -160,24 +162,38 @@ class Zitadel extends BaseConfig
      * Populates all properties from environment variables via CI4's `env()` helper.
      *
      * Each setting falls back to a sensible default when the environment variable is
-     * absent, so only `ZITADEL_ISSUER_URL`, `ZITADEL_CLIENT_ID`, `ZITADEL_REDIRECT_URI`,
-     * and `ZITADEL_COOKIE_SECRET` are strictly required at runtime.
+     * absent. Only `ZITADEL_ISSUER_URL`, `ZITADEL_CLIENT_ID`, `ZITADEL_COOKIE_SECRET`,
+     * and either `ZITADEL_REDIRECT_URI` or `SERVER_URL` are strictly required at runtime.
+     *
+     * When `ZITADEL_REDIRECT_URI` is not set, the redirect URI is derived automatically
+     * from `SERVER_URL` and the configured callback path, e.g.:
+     * `SERVER_URL=https://myapp.com` → `redirectUri=https://myapp.com/zitadel/callback`
      */
     public function __construct()
     {
-        $this->issuerUrl         = (string) env('ZITADEL_ISSUER_URL', '');
-        $this->clientId          = (string) env('ZITADEL_CLIENT_ID', '');
-        $this->redirectUri       = (string) env('ZITADEL_REDIRECT_URI', '');
-        $this->cookieSecret      = (string) env('ZITADEL_COOKIE_SECRET', '');
-        $this->callbackPath      = (string) env('ZITADEL_CALLBACK_PATH', '/zitadel/callback');
-        $this->logoutPath        = (string) env('ZITADEL_LOGOUT_PATH', '/zitadel/logout');
-        $this->proxyPath         = (string) env('ZITADEL_PROXY_PATH', '/__nextgen');
-        $this->postLoginRedirect = (string) env('ZITADEL_POST_LOGIN_URL', '/');
+        $this->issuerUrl          = (string) env('ZITADEL_ISSUER_URL', '');
+        $this->clientId           = (string) env('ZITADEL_CLIENT_ID', '');
+        $this->cookieSecret       = (string) env('ZITADEL_COOKIE_SECRET', '');
+        $this->callbackPath       = (string) env('ZITADEL_CALLBACK_PATH', '/zitadel/callback');
+        $this->logoutPath         = (string) env('ZITADEL_LOGOUT_PATH', '/zitadel/logout');
+        $this->proxyPath          = (string) env('ZITADEL_PROXY_PATH', '/__nextgen');
+        $this->postLoginRedirect  = (string) env('ZITADEL_POST_LOGIN_URL', '/');
         $this->postLogoutRedirect = (string) env('ZITADEL_POST_LOGOUT_URL', '/');
-        $this->jwksPath          = (string) env('ZITADEL_JWKS_PATH', '/oauth/v2/keys');
-        $this->authorizationPath = (string) env('ZITADEL_AUTHORIZATION_PATH', '/oauth/v2/authorize');
-        $this->tokenPath         = (string) env('ZITADEL_TOKEN_PATH', '/oauth/v2/token');
-        $this->endSessionPath    = (string) env('ZITADEL_END_SESSION_PATH', '/oidc/v1/end_session');
+        $this->jwksPath           = (string) env('ZITADEL_JWKS_PATH', '/oauth/v2/keys');
+        $this->authorizationPath  = (string) env('ZITADEL_AUTHORIZATION_PATH', '/oauth/v2/authorize');
+        $this->tokenPath          = (string) env('ZITADEL_TOKEN_PATH', '/oauth/v2/token');
+        $this->endSessionPath     = (string) env('ZITADEL_END_SESSION_PATH', '/oidc/v1/end_session');
+        $this->protectAll         = (bool) env('ZITADEL_PROTECT_ALL', false);
+
+        // Derive redirectUri from SERVER_URL when ZITADEL_REDIRECT_URI is absent.
+        // This keeps the common case (deploy to a known domain) zero-configuration.
+        $explicitRedirectUri = (string) env('ZITADEL_REDIRECT_URI', '');
+        if ($explicitRedirectUri !== '') {
+            $this->redirectUri = $explicitRedirectUri;
+        } else {
+            $serverUrl         = rtrim((string) env('SERVER_URL', 'http://localhost:3000'), '/');
+            $this->redirectUri = $serverUrl . $this->callbackPath;
+        }
 
         parent::__construct();
     }

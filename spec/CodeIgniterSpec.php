@@ -25,4 +25,13 @@ final class CodeIgniterSpec extends AbstractIntegrationSpec
     {
         return 9004;
     }
+
+    #[\Override]
+    protected static function extraEnvVars(string $mockBaseUrl, int $port): array
+    {
+        return [
+            'SERVER_URL=http://localhost:' . $port,
+            'ZITADEL_PROTECT_ALL=true',
+        ];
+    }
 }

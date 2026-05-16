@@ -7,14 +7,9 @@ namespace Config;
 use Zitadel\Sdk\Bridge\CodeIgniter\Config\Zitadel as BaseZitadel;
 
 /**
- * Application-specific Zitadel configuration.
+ * Zitadel SDK configuration for the integration spec fixture.
  *
- * Credentials and endpoint overrides are read automatically from `.env` by the
- * base class. Override `$protectAll` and `$ignoredRoutes` here to suit the
- * application's access-control requirements.
+ * All settings are injected via the .env file written by AbstractIntegrationSpec
+ * before the PHP built-in server starts. No properties need to be overridden here.
  */
-class Zitadel extends BaseZitadel
-{
-    public bool  $protectAll    = true;
-    public array $ignoredRoutes = ['/health'];
-}
+class Zitadel extends BaseZitadel {}

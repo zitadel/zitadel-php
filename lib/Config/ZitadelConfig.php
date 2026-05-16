@@ -270,6 +270,65 @@ readonly class ZitadelConfig
     }
 
     /**
+     * Creates a {@see ZitadelConfig} from a plain associative array.
+     *
+     * Accepts both snake_case and camelCase keys so it fits naturally into any
+     * framework's config convention. Snake_case takes precedence when both forms
+     * are present. All keys are optional; required values default to an empty
+     * string and will fail validation in the constructor if not provided.
+     *
+     * Example (Phalcon / plain PHP config array):
+     * ```php
+     * ZitadelConfig::fromArray($config['zitadel'] + [
+     *     'redirect_uri' => rtrim($config['app']['serverUrl'], '/') . '/zitadel/callback',
+     *     'protect_all'  => true,
+     * ]);
+     * ```
+     *
+     * @param array<string, mixed> $config Configuration key/value pairs.
+     * @return self
+     */
+    public static function fromArray(array $config): self
+    {
+        /** @param string[] $keys Keys to look up in priority order */
+        $get = static function (array $cfg, string ...$keys): mixed {
+            foreach ($keys as $key) {
+                if (array_key_exists($key, $cfg)) {
+                    return $cfg[$key];
+                }
+            }
+
+            return null;
+        };
+
+        return new self(
+            issuerUrl:          (string)  ($get($config, 'issuer_url',           'issuerUrl')          ?? ''),
+            clientId:           (string)  ($get($config, 'client_id',            'clientId')           ?? ''),
+            redirectUri:        (string)  ($get($config, 'redirect_uri',         'redirectUri')        ?? ''),
+            cookieSecret:       (string)  ($get($config, 'cookie_secret',        'cookieSecret')       ?? ''),
+            callbackPath:       (string)  ($get($config, 'callback_path',        'callbackPath')       ?? '/zitadel/callback'),
+            logoutPath:         (string)  ($get($config, 'logout_path',          'logoutPath')         ?? '/zitadel/logout'),
+            proxyPath:          (string)  ($get($config, 'proxy_path',           'proxyPath')          ?? '/__nextgen'),
+            postLoginRedirect:  (string)  ($get($config, 'post_login_redirect',  'postLoginRedirect')  ?? '/'),
+            postLogoutRedirect: (string)  ($get($config, 'post_logout_redirect', 'postLogoutRedirect') ?? '/'),
+            protectAll:         (bool)    ($get($config, 'protect_all',          'protectAll')         ?? false),
+            ignoredRoutes:      (array)   ($get($config, 'ignored_routes',       'ignoredRoutes')      ?? []),
+            protectedRoutes:    (array)   ($get($config, 'protected_routes',     'protectedRoutes')    ?? []),
+            scopes:             (array)   ($get($config, 'scopes')                                     ?? ['openid', 'profile', 'email']),
+            allowedAlgorithms:  (array)   ($get($config, 'allowed_algorithms',   'allowedAlgorithms')  ?? [Algorithm::RS256, Algorithm::ES256]),
+            allowedTokenTypes:  (array)   ($get($config, 'allowed_token_types',  'allowedTokenTypes')  ?? [TokenType::JWT, TokenType::AtJWT]),
+            audience:                      $get($config, 'audience'),
+            clockSkewSeconds:   (int)     ($get($config, 'clock_skew_seconds',   'clockSkewSeconds')   ?? 5),
+            jwksTtlSeconds:     (int)     ($get($config, 'jwks_ttl_seconds',     'jwksTtlSeconds')     ?? 300),
+            httpTimeoutSeconds: (int)     ($get($config, 'http_timeout_seconds', 'httpTimeoutSeconds') ?? 5),
+            jwksPath:           (string)  ($get($config, 'jwks_path',            'jwksPath')           ?? '/oauth/v2/keys'),
+            authorizationPath:  (string)  ($get($config, 'authorization_path',  'authorizationPath')  ?? '/oauth/v2/authorize'),
+            tokenPath:          (string)  ($get($config, 'token_path',           'tokenPath')          ?? '/oauth/v2/token'),
+            endSessionPath:     (string)  ($get($config, 'end_session_path',     'endSessionPath')     ?? '/oidc/v1/end_session'),
+        );
+    }
+
+    /**
      * Returns the JWKS endpoint URI.
      *
      * @return string Absolute URL for the JWKS public-key set endpoint.
