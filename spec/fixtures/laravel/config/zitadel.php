@@ -14,6 +14,7 @@ return [
     'protect_all'        => env('ZITADEL_PROTECT_ALL', true),
     'protected_routes'   => [],
     'ignored_routes'     => ['/health'],
+    'audience'           => env('ZITADEL_AUDIENCE'),
     'scopes'             => ['openid', 'profile', 'email'],
     'clock_skew_seconds' => 5,
     'jwks_ttl_seconds'   => 300,

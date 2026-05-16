@@ -185,6 +185,11 @@ class Zitadel extends BaseConfig
         $this->endSessionPath     = (string) env('ZITADEL_END_SESSION_PATH', '/oidc/v1/end_session');
         $this->protectAll         = (bool) env('ZITADEL_PROTECT_ALL', false);
 
+        // Audience defaults to null (falls back to clientId in ZitadelConfig).
+        // Set ZITADEL_AUDIENCE explicitly to match a non-standard audience claim.
+        $envAudience    = env('ZITADEL_AUDIENCE');
+        $this->audience = is_string($envAudience) && $envAudience !== '' ? $envAudience : null;
+
         // Derive redirectUri from SERVER_URL when ZITADEL_REDIRECT_URI is absent.
         // This keeps the common case (deploy to a known domain) zero-configuration.
         $explicitRedirectUri = (string) env('ZITADEL_REDIRECT_URI', '');

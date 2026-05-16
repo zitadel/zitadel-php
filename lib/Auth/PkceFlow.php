@@ -143,8 +143,12 @@ final class PkceFlow
             if (json_validate($body)) {
                 /** @var array<string, mixed>|null $errData */
                 $errData = json_decode($body, true);
-                $desc    = is_array($errData) ? (string) ($errData['error_description'] ?? $errData['error'] ?? "HTTP {$httpCode}") : "HTTP {$httpCode}";
-                throw new PkceException("[zitadel] Token exchange OAuth error: {$desc}");
+                if (is_array($errData)) {
+                    $desc = (string) ($errData['error_description'] ?? $errData['error'] ?? "HTTP {$httpCode}");
+                    // Log internally but never surface OAuth error strings to callers —
+                    // they may leak AS-side error details if exposed in HTTP responses.
+                    error_log("[zitadel] Token exchange OAuth error (HTTP {$httpCode}): {$desc}");
+                }
             }
             throw new PkceException("[zitadel] Token exchange failed with HTTP {$httpCode}.");
         }
@@ -162,7 +166,9 @@ final class PkceFlow
 
         if (isset($data['error'])) {
             $desc = (string) ($data['error_description'] ?? $data['error']);
-            throw new PkceException("[zitadel] Token exchange OAuth error: {$desc}");
+            // Log internally but never surface OAuth error strings to callers.
+            error_log("[zitadel] Token exchange OAuth error: {$desc}");
+            throw new PkceException('[zitadel] Token exchange returned an error response.');
         }
 
         return $data;

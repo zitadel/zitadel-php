@@ -3,6 +3,7 @@ zitadel:
     client_id: '%env(ZITADEL_CLIENT_ID)%'
     redirect_uri: '%env(ZITADEL_REDIRECT_URI)%'
     cookie_secret: '%env(ZITADEL_COOKIE_SECRET)%'
+    audience: '%env(ZITADEL_AUDIENCE)%'
     protect_all: true
     ignored_routes:
         - '/health'

@@ -18,6 +18,9 @@ use Zitadel\Sdk\Auth\TokenType;
  */
 readonly class ZitadelConfig
 {
+    /** @var string|string[]|null Expected `aud` claim. Defaults to `$clientId` when not supplied. */
+    public string|array|null $audience;
+
     /**
      * @param string               $issuerUrl          Base URL of the Zitadel instance.
      *                                                  Must not have a trailing slash.
@@ -71,16 +74,21 @@ readonly class ZitadelConfig
      *                                                  Default: `[Algorithm::RS256, Algorithm::ES256]`
      * @param TokenType[]          $allowedTokenTypes  Accepted `typ` header values.
      *                                                  Default: `[TokenType::JWT, TokenType::AtJWT]`
-     * @param string|string[]|null $audience           Expected `aud` claim value. When set, the token
-     *                                                  must contain this audience. Accepts a single
-     *                                                  string or an array when multiple are valid.
-     *                                                  Default: `null` (audience check skipped)
+     * @param string|string[]|null $audience           Expected `aud` claim value. The token must
+     *                                                  contain this audience. Accepts a single string
+     *                                                  or an array when multiple are valid.
+     *                                                  Defaults to `$clientId`, which is the correct
+     *                                                  value for Zitadel PKCE flows — the access token's
+     *                                                  `aud` claim contains the client ID.
+     *                                                  Set to `null` only if you intentionally want to
+     *                                                  skip audience validation (not recommended).
      * @param int                  $clockSkewSeconds   Tolerance applied to `exp`, `nbf`, and `iat`
      *                                                  checks to account for clock drift.
      *                                                  Default: `5`
      * @param int                  $jwksTtlSeconds     How long (seconds) a fetched JWKS key set is
      *                                                  cached in-process before re-fetching.
-     *                                                  Default: `300`
+     *                                                  Lower values reduce the window in which a
+     *                                                  revoked key can still be used. Default: `60`
      * @param int                  $httpTimeoutSeconds Timeout (seconds) for HTTP calls: JWKS key
      *                                                  fetch and authorization code exchange.
      *                                                  Default: `5`
@@ -122,9 +130,9 @@ readonly class ZitadelConfig
         public array                $scopes             = ['openid', 'profile', 'email'],
         public array                $allowedAlgorithms  = [Algorithm::RS256, Algorithm::ES256],
         public array                $allowedTokenTypes  = [TokenType::JWT, TokenType::AtJWT],
-        public string|array|null    $audience           = null,
+        string|array|null           $audience           = null,
         public int                  $clockSkewSeconds   = 5,
-        public int                  $jwksTtlSeconds     = 300,
+        public int                  $jwksTtlSeconds     = 60,
         public int                  $httpTimeoutSeconds = 5,
         // ── Optional: endpoint path overrides (for non-Zitadel OIDC servers) ─
         public string               $jwksPath           = '/oauth/v2/keys',
@@ -267,6 +275,12 @@ readonly class ZitadelConfig
                 '[zitadel] allowedAlgorithms and allowedTokenTypes must not be empty arrays.'
             );
         }
+
+        // Default audience to clientId — prevents cross-client token reuse from the same
+        // issuer. Zitadel access tokens carry the client_id as the aud claim, so this
+        // default is correct for all standard PKCE flows. Pass audience: null only when
+        // you intentionally want to skip audience validation (not recommended).
+        $this->audience = $audience ?? $clientId;
     }
 
     /**
@@ -319,7 +333,7 @@ readonly class ZitadelConfig
             allowedTokenTypes:  (array)   ($get($config, 'allowed_token_types', 'allowedTokenTypes')  ?? [TokenType::JWT, TokenType::AtJWT]),
             audience:                      $get($config, 'audience'),
             clockSkewSeconds:   (int)     ($get($config, 'clock_skew_seconds', 'clockSkewSeconds')   ?? 5),
-            jwksTtlSeconds:     (int)     ($get($config, 'jwks_ttl_seconds', 'jwksTtlSeconds')     ?? 300),
+            jwksTtlSeconds:     (int)     ($get($config, 'jwks_ttl_seconds', 'jwksTtlSeconds')     ?? 60),
             httpTimeoutSeconds: (int)     ($get($config, 'http_timeout_seconds', 'httpTimeoutSeconds') ?? 5),
             jwksPath:           (string)  ($get($config, 'jwks_path', 'jwksPath')           ?? '/oauth/v2/keys'),
             authorizationPath:  (string)  ($get($config, 'authorization_path', 'authorizationPath')  ?? '/oauth/v2/authorize'),

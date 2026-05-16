@@ -139,11 +139,12 @@ final class TokenValidatorTest extends TestCase
         $now     = time();
         $header  = rtrim(strtr(base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT', 'kid' => $kid])), '+/', '-_'), '=');
         $payload = rtrim(strtr(base64_encode(json_encode([
-            'sub' => 'user-abc',
-            'iss' => 'https://example.zitadel.cloud',
-            'exp' => $now + 3600,
-            'iat' => $now,
-            'name' => 'Test User',
+            'sub'   => 'user-abc',
+            'iss'   => 'https://example.zitadel.cloud',
+            'exp'   => $now + 3600,
+            'iat'   => $now,
+            'aud'   => 'client-id',
+            'name'  => 'Test User',
             'email' => 'test@example.com',
         ])), '+/', '-_'), '=');
         $signingInput = "{$header}.{$payload}";
@@ -185,6 +186,7 @@ final class TokenValidatorTest extends TestCase
             'iss' => 'https://example.zitadel.cloud',
             'exp' => $past,
             'iat' => $past - 60,
+            'aud' => 'client-id',
         ])), '+/', '-_'), '=');
         $signingInput = "{$header}.{$payload}";
         openssl_sign($signingInput, $signature, $privateKey, OPENSSL_ALGO_SHA256);
@@ -215,6 +217,7 @@ final class TokenValidatorTest extends TestCase
             'iss' => 'https://evil.example.com',
             'exp' => time() + 3600,
             'iat' => time(),
+            'aud' => 'client-id',
         ])), '+/', '-_'), '=');
         $signingInput = "{$header}.{$payload}";
         openssl_sign($signingInput, $signature, $privateKey, OPENSSL_ALGO_SHA256);
@@ -381,6 +384,7 @@ final class TokenValidatorTest extends TestCase
             'iss' => 'https://example.zitadel.cloud',
             'exp' => $now + 3600,
             'iat' => $now,
+            'aud' => 'client-id',
         ])), '+/', '-_'), '=');
         $signingInput = "{$header}.{$payloadB64}";
 
@@ -1036,7 +1040,10 @@ final class TokenValidatorTest extends TestCase
         $kid = 'rsa-test-key';
 
         $header       = rtrim(strtr(base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT', 'kid' => $kid])), '+/', '-_'), '=');
-        $payloadB64   = rtrim(strtr(base64_encode(json_encode($claims)), '+/', '-_'), '=');
+        // Default aud to 'client-id' so tokens validate against the default config
+        // (which now requires aud == clientId). Tests that need a different aud pass
+        // it explicitly in $claims and it takes precedence via the union.
+        $payloadB64   = rtrim(strtr(base64_encode(json_encode($claims + ['aud' => 'client-id'])), '+/', '-_'), '=');
         $signingInput = "{$header}.{$payloadB64}";
 
         openssl_sign($signingInput, $signature, $privateKey, OPENSSL_ALGO_SHA256);
@@ -1081,6 +1088,7 @@ final class TokenValidatorTest extends TestCase
             'iss' => 'https://example.zitadel.cloud',
             'exp' => $now + 3600,
             'iat' => $now,
+            'aud' => 'client-id',
         ])), '+/', '-_'), '=');
         $signingInput = "{$header}.{$payloadB64}";
 

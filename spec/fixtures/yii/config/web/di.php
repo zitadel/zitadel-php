@@ -27,6 +27,7 @@ return [
             'clientId'          => $_ENV['ZITADEL_CLIENT_ID']          ?? '',
             'redirectUri'       => $_ENV['ZITADEL_REDIRECT_URI']       ?? '',
             'cookieSecret'      => $_ENV['ZITADEL_COOKIE_SECRET']      ?? '',
+            'audience'          => ($_ENV['ZITADEL_AUDIENCE'] ?? null) ?: null,
             'protectAll'        => true,
             'ignoredRoutes'     => ['/health'],
             'jwksPath'          => $_ENV['ZITADEL_JWKS_PATH']          ?? '/oauth/v2/keys',

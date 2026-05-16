@@ -132,8 +132,8 @@ class ZitadelFilter implements FilterInterface
         $token  = null;
         if (str_starts_with($bearer, 'Bearer ')) {
             $token = substr($bearer, 7);
-        } elseif (!empty($request->getCookie('__nextgen_auth'))) {
-            $token = $request->getCookie('__nextgen_auth');
+        } elseif (is_string($cookie = $request->getCookie('__nextgen_auth')) && $cookie !== '') {
+            $token = $cookie;
         }
 
         $claims = $token !== null ? $this->validator->validate((string) $token) : null;
@@ -184,9 +184,10 @@ class ZitadelFilter implements FilterInterface
 
         // Public unauthenticated request — scrub any stale SDK cookies.
         $response = service('response');
+        $secure   = $request->isSecure();
         foreach (array_keys((array) $request->getCookie()) as $name) {
             if (str_starts_with((string) $name, '__nextgen')) {
-                $response->deleteCookie((string) $name, '', '/');
+                $response->deleteCookie((string) $name, '', '/', '', $secure);
             }
         }
 
@@ -289,24 +290,27 @@ class ZitadelFilter implements FilterInterface
      */
     protected function handleCallback(IncomingRequest $request): ResponseInterface
     {
+        // Capture Secure flag early — needed for cookie deletion on every exit path.
+        $secure = $request->isSecure();
+
         $pkceValue = $request->getCookie('__nextgen_pkce');
         if (!is_string($pkceValue) || $pkceValue === '') {
             $response = $this->badRequest('Authentication failed — PKCE state cookie missing. Please try signing in again.');
-            $response->deleteCookie('__nextgen_pkce', '', '/');
+            $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
             return $response;
         }
 
         $pkce = PkceStateCookie::decrypt($pkceValue, $this->config->cookieSecret);
         if ($pkce === null) {
             $response = $this->badRequest('Authentication failed — PKCE state cookie invalid. Please try signing in again.');
-            $response->deleteCookie('__nextgen_pkce', '', '/');
+            $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
             return $response;
         }
 
         $state = $request->getGet('state');
         if (!hash_equals($pkce['state'], (string) $state)) {
             $response = $this->badRequest('Authentication failed — state parameter mismatch. Please try signing in again.');
-            $response->deleteCookie('__nextgen_pkce', '', '/');
+            $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
             return $response;
         }
 
@@ -314,7 +318,7 @@ class ZitadelFilter implements FilterInterface
         if (!is_string($code) || $code === '') {
             $oauthError = $request->getGet('error_description') ?? $request->getGet('error') ?? 'Missing code';
             $response = $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
-            $response->deleteCookie('__nextgen_pkce', '', '/');
+            $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
             return $response;
         }
 
@@ -322,33 +326,32 @@ class ZitadelFilter implements FilterInterface
             $tokens = PkceFlow::exchangeCode($this->config, $code, $pkce['verifier']);
         } catch (PkceException) {
             $response = $this->badRequest('Authentication failed — the login server returned an error. Please try signing in again.');
-            $response->deleteCookie('__nextgen_pkce', '', '/');
+            $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
             return $response;
         }
 
         $tokenToValidate = PkceFlow::selectToken($tokens);
         if ($tokenToValidate === null) {
             $response = $this->badRequest('Authentication failed — no usable token in response.');
-            $response->deleteCookie('__nextgen_pkce', '', '/');
+            $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
             return $response;
         }
 
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             $response = $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
-            $response->deleteCookie('__nextgen_pkce', '', '/');
+            $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
             return $response;
         }
 
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
         $maxAge = max(0, $claims->exp - time());
-        $secure = $request->isSecure();
 
         Events::trigger('zitadel_login', new ZitadelLoginEvent($claims));
 
         $response = response()->redirect($next);
         $response->setCookie('__nextgen_auth', $tokenToValidate, $maxAge, '', '/', '', $secure, true, 'Lax');
-        $response->deleteCookie('__nextgen_pkce', '', '/');
+        $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
 
         return $response;
     }
@@ -369,7 +372,7 @@ class ZitadelFilter implements FilterInterface
 
         foreach (array_keys((array) $request->getCookie()) as $name) {
             if (str_starts_with((string) $name, '__nextgen') && (string) $name !== '__nextgen_auth') {
-                $response->deleteCookie((string) $name, '', '/');
+                $response->deleteCookie((string) $name, '', '/', '', $request->isSecure());
             }
         }
 

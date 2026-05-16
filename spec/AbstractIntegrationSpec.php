@@ -552,6 +552,10 @@ abstract class AbstractIntegrationSpec extends TestCase
             "ZITADEL_CLIENT_ID=test-client",
             "ZITADEL_REDIRECT_URI=http://localhost:{$port}/zitadel/callback",
             "ZITADEL_COOKIE_SECRET={$cookieSecret}",
+            // navikt/mock-oauth2-server issues tokens with aud = realm name ("default"), not
+            // the client_id. Set ZITADEL_AUDIENCE to match so token validation passes.
+            // Real Zitadel uses aud = client_id, which is the SDK default for production.
+            'ZITADEL_AUDIENCE=default',
             // Paths are relative to issuerUrl — navikt serves at /default/jwks, /default/authorize etc.
             'ZITADEL_JWKS_PATH=/jwks',
             'ZITADEL_AUTHORIZATION_PATH=/authorize',
