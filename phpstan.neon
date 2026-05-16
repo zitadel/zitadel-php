@@ -5,4 +5,5 @@ parameters:
     - test
   excludePaths:
     - lib/Bridge
+    - lib/Commands
   treatPhpDocTypesAsCertain: false
