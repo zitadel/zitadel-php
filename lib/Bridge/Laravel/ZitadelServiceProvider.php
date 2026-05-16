@@ -6,7 +6,6 @@ namespace Zitadel\Sdk\Bridge\Laravel;
 
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Cookie\Middleware\EncryptCookies;
-use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\ServiceProvider;
@@ -103,13 +102,6 @@ final class ZitadelServiceProvider extends ServiceProvider
      */
     public function boot(Router $router): void
     {
-        // Register $m->zitadel() as a fluent alias for appending ZitadelMiddleware to the
-        // web group — mirrors Sanctum's $m->statefulApi() pattern.
-        Middleware::macro('zitadel', function () {
-            /** @var Middleware $this */
-            return $this->web(append: [ZitadelMiddleware::class]);
-        });
-
         if ($this->app->runningInConsole()) {
             $this->publishes(
                 [__DIR__ . '/config/zitadel.php' => config_path('zitadel.php')],

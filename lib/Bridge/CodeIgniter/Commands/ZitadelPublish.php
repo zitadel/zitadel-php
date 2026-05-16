@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Zitadel\Sdk\Commands;
+namespace Zitadel\Sdk\Bridge\CodeIgniter\Commands;
 
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
