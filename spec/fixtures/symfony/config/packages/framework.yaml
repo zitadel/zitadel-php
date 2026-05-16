@@ -4,4 +4,3 @@ framework:
     handle_all_throwables: true
     router:
         utf8: true
-    annotations: false

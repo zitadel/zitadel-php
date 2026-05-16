@@ -91,7 +91,7 @@ readonly class ZitadelPlugin
         // shared across requests, stale state from a previous request must be cleared
         // unconditionally before any logic runs — including paths that short-circuit
         // before a controller is dispatched (proxy, callback, logout).
-        $di->set('zitadel.claims', static fn () => null);
+        $di->set('zitadel.claims', fn () => null);
         if ($di->has('_zitadel_pending_redirect')) {
             $di->remove('_zitadel_pending_redirect');
         }
@@ -122,7 +122,7 @@ readonly class ZitadelPlugin
 
         // Ignored routes pass through
         if ($this->matchesRoutes($path, $this->config->ignoredRoutes)) {
-            $di->set('zitadel.claims', static fn () => null);
+            $di->set('zitadel.claims', fn () => null);
             return true;
         }
 
@@ -141,7 +141,7 @@ readonly class ZitadelPlugin
         $claims = $token !== null ? $this->validator->validate((string) $token) : null;
 
         if ($claims !== null) {
-            $di->set('zitadel.claims', static fn () => $claims);
+            $di->set('zitadel.claims', fn () => $claims);
             return true;
         }
 
@@ -152,7 +152,7 @@ readonly class ZitadelPlugin
         }
 
         // Public unauthenticated — delete stale cookies
-        $di->set('zitadel.claims', static fn () => null);
+        $di->set('zitadel.claims', fn () => null);
         foreach (array_keys($_COOKIE) as $name) {
             if (str_starts_with((string) $name, '__nextgen')) {
                 header($this->buildCookieHeader((string) $name, '', 0, $request->isSecure()), false);
@@ -187,14 +187,14 @@ readonly class ZitadelPlugin
 
             if (!empty($classRef->getAttributes(AllowAnonymous::class))) {
                 $di->remove('_zitadel_pending_redirect');
-                $di->set('zitadel.claims', static fn () => null);
+                $di->set('zitadel.claims', fn () => null);
                 return true;
             }
 
             if ($classRef->hasMethod($actionName) &&
                 !empty($classRef->getMethod($actionName)->getAttributes(AllowAnonymous::class))) {
                 $di->remove('_zitadel_pending_redirect');
-                $di->set('zitadel.claims', static fn () => null);
+                $di->set('zitadel.claims', fn () => null);
                 return true;
             }
         }

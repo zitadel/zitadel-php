@@ -28,6 +28,6 @@ $app->setEventsManager($eventsManager);
 $app->getDI()->get('dispatcher')->setEventsManager($eventsManager);
 
 $result = $app->handle($_SERVER['REQUEST_URI']);
-if ($result !== false) {
+if ($result !== false && !$result->isSent()) {
     $result->send();
 }

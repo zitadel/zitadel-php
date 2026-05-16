@@ -18,7 +18,7 @@ $di->set('router', function () {
 }, true);
 
 // Zitadel SDK — registers zitadelConfig, zitadelValidator, and zitadelPlugin
-ZitadelServiceProvider::register($di, new ZitadelConfig(
+ZitadelServiceProvider::create($di, new ZitadelConfig(
     issuerUrl:         (string) ($_ENV['ZITADEL_ISSUER_URL']         ?? ''),
     clientId:          (string) ($_ENV['ZITADEL_CLIENT_ID']          ?? ''),
     redirectUri:       (string) ($_ENV['ZITADEL_REDIRECT_URI']       ?? ''),
