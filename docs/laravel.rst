@@ -60,25 +60,26 @@ need to change optional settings such as ``protect_all``, ``ignored_routes``, or
 Wiring Middleware
 -----------------
 
-:php:class:`Zitadel\Sdk\Bridge\Laravel\ZitadelServiceProvider` registers a ``zitadel()``
-macro on Laravel 11's ``Middleware`` builder — mirroring Sanctum's ``statefulApi()``
-pattern. In ``bootstrap/app.php``:
+Append :php:class:`Zitadel\Sdk\Bridge\Laravel\Http\Middleware\ZitadelMiddleware` to the
+``web`` group in ``bootstrap/app.php``. Cookie-encryption exclusion for
+``__nextgen_auth`` and ``__nextgen_pkce`` is applied automatically by
+:php:class:`Zitadel\Sdk\Bridge\Laravel\ZitadelServiceProvider` — no manual
+``encryptCookies(except: [...])`` call is needed:
 
 .. code-block:: php
 
    use Illuminate\Foundation\Application;
    use Illuminate\Foundation\Configuration\Exceptions;
    use Illuminate\Foundation\Configuration\Middleware;
+   use Zitadel\Sdk\Bridge\Laravel\Http\Middleware\ZitadelMiddleware;
 
    return Application::configure(basePath: dirname(__DIR__))
        ->withRouting(web: __DIR__ . '/../routes/web.php')
-       ->withMiddleware(fn (Middleware $middleware) => $middleware->zitadel())
+       ->withMiddleware(function (Middleware $middleware) {
+           $middleware->web(append: [ZitadelMiddleware::class]);
+       })
        ->withExceptions(fn (Exceptions $exceptions) => $exceptions)
        ->create();
-
-Cookie-encryption exclusion for ``__nextgen_auth`` and ``__nextgen_pkce`` is applied
-automatically inside the service provider — no manual ``encryptCookies(except: [...])``
-call is needed.
 
 
 Protecting Routes

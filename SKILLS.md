@@ -137,13 +137,17 @@ return [
 
 ### Wire middleware — `bootstrap/app.php`
 
-`ZitadelServiceProvider` registers a `zitadel()` macro on Laravel 11's
-`Middleware` builder (mirrors Sanctum's `statefulApi()` pattern). Use it as a
-one-liner — cookie-encryption exclusion is handled automatically:
+Append `ZitadelMiddleware` to the `web` group. Cookie-encryption exclusion for
+`__nextgen_auth` and `__nextgen_pkce` is applied automatically by
+`ZitadelServiceProvider` — no manual `encryptCookies(except: [...])` needed:
 
 ```php
+use Zitadel\Sdk\Bridge\Laravel\Http\Middleware\ZitadelMiddleware;
+
 return Application::configure(basePath: dirname(__DIR__))
-    ->withMiddleware(fn (Middleware $middleware) => $middleware->zitadel())
+    ->withMiddleware(function (Middleware $middleware) {
+        $middleware->web(append: [ZitadelMiddleware::class]);
+    })
     ->create();
 ```
 
