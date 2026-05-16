@@ -116,7 +116,7 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
         }
 
         // Step 3 — ignored routes
-        if ($this->matchesRoutes($path, $this->config->ignoredRoutes)) {
+        if (PkceFlow::matchesRoutes($path, $this->config->ignoredRoutes)) {
             return $handler->handle($request->withAttribute('zitadel.claims', null));
         }
 
@@ -135,7 +135,7 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
         }
 
         // Step 7 — protected route redirect
-        if ($this->config->protectAll || $this->matchesRoutes($path, $this->config->protectedRoutes)) {
+        if ($this->config->protectAll || PkceFlow::matchesRoutes($path, $this->config->protectedRoutes)) {
             return $this->redirectToLogin($request, $isSecure);
         }
 
@@ -347,7 +347,7 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
 
         $maxAge = max(0, $claims->exp - time());
         $secure = $isSecure ? '; Secure' : '';
-        $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
+        $next   = PkceFlow::sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
 
         $this->eventDispatcher?->dispatch(new ZitadelLoginEvent($claims));
 
@@ -451,59 +451,6 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
         }
 
         return $response;
-    }
-
-    /** @param string[] $routes */
-    private function matchesRoutes(string $path, array $routes): bool
-    {
-        if ($routes === []) {
-            return false;
-        }
-
-        foreach ($routes as $pattern) {
-            if (str_ends_with($pattern, '*')) {
-                if (str_starts_with($path, substr($pattern, 0, -1))) {
-                    return true;
-                }
-            } elseif ($path === $pattern) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Validates that `$next` is a safe relative path suitable for use as a post-login redirect.
-     *
-     * Rejects absolute URLs, protocol-relative URLs (`//`), and paths containing backslashes
-     * to prevent open-redirect vulnerabilities.
-     *
-     * @param string $next The candidate redirect path from the PKCE state cookie.
-     * @return string|null The sanitized path, or null if the input is unsafe.
-     */
-    private function sanitizeNext(string $next): ?string
-    {
-        if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
-            return null;
-        }
-
-        // Reject paths that decode to a protocol-relative URL.
-        // A raw path of "/%2F/evil.com" starts with "/" and passes the literal
-        // "//" check, but decodes to "//evil.com" — an open redirect.
-        if (str_starts_with(rawurldecode($next), '//')) {
-            return null;
-        }
-
-        if (str_contains($next, '\\')) {
-            return null;
-        }
-
-        if (parse_url($next, PHP_URL_SCHEME) !== null) {
-            return null;
-        }
-
-        return $next;
     }
 
     /**

@@ -41,9 +41,9 @@ use Zitadel\Sdk\Config\ZitadelConfig;
  * - `zitadelValidator` — a shared {@see TokenValidator} backed by a {@see JwksCache}
  * - `zitadelPlugin`    — a shared {@see ZitadelPlugin} wired to the config and validator
  */
-final class ZitadelServiceProvider implements ServiceProviderInterface
+final readonly class ZitadelServiceProvider implements ServiceProviderInterface
 {
-    public function __construct(private readonly ZitadelConfig $config)
+    public function __construct(private ZitadelConfig $config)
     {
     }
 

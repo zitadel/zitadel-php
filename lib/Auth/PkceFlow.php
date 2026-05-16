@@ -175,6 +175,71 @@ final class PkceFlow
     }
 
     /**
+     * Returns true when `$path` matches any pattern in `$routes`.
+     *
+     * Patterns ending with `*` are treated as prefix wildcards:
+     * `"/admin*"` matches `"/admin"`, `"/admin/"`, `"/admin/users"`, etc.
+     * All other patterns are compared as exact strings.
+     *
+     * @param string   $path   The incoming request path (e.g. `"/dashboard"`).
+     * @param string[] $routes Array of exact paths or prefix patterns (e.g. `['/api/*', '/health']`).
+     * @return bool True if `$path` matches at least one pattern.
+     */
+    public static function matchesRoutes(string $path, array $routes): bool
+    {
+        if ($routes === []) {
+            return false;
+        }
+
+        foreach ($routes as $pattern) {
+            if (str_ends_with($pattern, '*')) {
+                if (str_starts_with($path, substr($pattern, 0, -1))) {
+                    return true;
+                }
+            } elseif ($path === $pattern) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Validates that `$next` is a safe relative path for use as a post-login redirect.
+     *
+     * Rejects absolute URLs, protocol-relative URLs (`//`), paths that decode to
+     * a protocol-relative URL (e.g. `/%2F/evil.com`), paths containing backslashes,
+     * and any path whose value is parseable as a URL scheme — all to prevent
+     * open-redirect vulnerabilities.
+     *
+     * @param string $next The candidate redirect path from the PKCE state cookie.
+     * @return string|null The validated path, or null if the input is unsafe.
+     */
+    public static function sanitizeNext(string $next): ?string
+    {
+        if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
+            return null;
+        }
+
+        // Reject paths that decode to a protocol-relative URL.
+        // A raw path of "/%2F/evil.com" starts with "/" and passes the literal
+        // "//" check, but decodes to "//evil.com" — an open redirect.
+        if (str_starts_with(rawurldecode($next), '//')) {
+            return null;
+        }
+
+        if (str_contains($next, '\\')) {
+            return null;
+        }
+
+        if (parse_url($next, PHP_URL_SCHEME) !== null) {
+            return null;
+        }
+
+        return $next;
+    }
+
+    /**
      * Selects the token to validate from a token exchange response.
      *
      * ZITADEL (and some other providers) issue the access token as a JWE

@@ -12,6 +12,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Zitadel\Sdk\Auth\Claims;
 use Zitadel\Sdk\Auth\JwksCacheInterface;
+use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
 use Zitadel\Sdk\Config\ZitadelConfig;
@@ -699,7 +700,7 @@ final class ZitadelMiddlewareTest extends TestCase
     }
 
     // =========================================================================
-    // (g) sanitizeNext — rawurldecode "//" protection
+    // (g) sanitizeNext — rawurldecode "//" protection (now in PkceFlow core)
     // =========================================================================
 
     /**
@@ -708,10 +709,7 @@ final class ZitadelMiddlewareTest extends TestCase
      */
     public function testSanitizeNextRejectsProtocolRelativePath(): void
     {
-        $method = (new \ReflectionClass(ZitadelMiddleware::class))->getMethod('sanitizeNext');
-
-        $middleware = $this->buildMiddleware();
-        self::assertNull($method->invoke($middleware, '//evil.com/phishing'));
+        self::assertNull(PkceFlow::sanitizeNext('//evil.com/phishing'));
     }
 
     /**
@@ -720,10 +718,7 @@ final class ZitadelMiddlewareTest extends TestCase
      */
     public function testSanitizeNextRejectsPercentEncodedProtocolRelativePath(): void
     {
-        $method = (new \ReflectionClass(ZitadelMiddleware::class))->getMethod('sanitizeNext');
-
-        $middleware = $this->buildMiddleware();
-        self::assertNull($method->invoke($middleware, '/%2F/evil.com'));
+        self::assertNull(PkceFlow::sanitizeNext('/%2F/evil.com'));
     }
 
     /**
@@ -731,10 +726,7 @@ final class ZitadelMiddlewareTest extends TestCase
      */
     public function testSanitizeNextAcceptsSafeRelativePath(): void
     {
-        $method = (new \ReflectionClass(ZitadelMiddleware::class))->getMethod('sanitizeNext');
-
-        $middleware = $this->buildMiddleware();
-        self::assertSame('/dashboard?tab=settings', $method->invoke($middleware, '/dashboard?tab=settings'));
+        self::assertSame('/dashboard?tab=settings', PkceFlow::sanitizeNext('/dashboard?tab=settings'));
     }
 
     /**
@@ -742,10 +734,7 @@ final class ZitadelMiddlewareTest extends TestCase
      */
     public function testSanitizeNextRejectsAbsoluteUrl(): void
     {
-        $method = (new \ReflectionClass(ZitadelMiddleware::class))->getMethod('sanitizeNext');
-
-        $middleware = $this->buildMiddleware();
-        self::assertNull($method->invoke($middleware, 'https://evil.com/steal'));
+        self::assertNull(PkceFlow::sanitizeNext('https://evil.com/steal'));
     }
 
     /**
@@ -753,10 +742,7 @@ final class ZitadelMiddlewareTest extends TestCase
      */
     public function testSanitizeNextRejectsBackslash(): void
     {
-        $method = (new \ReflectionClass(ZitadelMiddleware::class))->getMethod('sanitizeNext');
-
-        $middleware = $this->buildMiddleware();
-        self::assertNull($method->invoke($middleware, '/foo\\bar'));
+        self::assertNull(PkceFlow::sanitizeNext('/foo\\bar'));
     }
 
     /**
@@ -764,10 +750,7 @@ final class ZitadelMiddlewareTest extends TestCase
      */
     public function testSanitizeNextRejectsRelativePathWithoutLeadingSlash(): void
     {
-        $method = (new \ReflectionClass(ZitadelMiddleware::class))->getMethod('sanitizeNext');
-
-        $middleware = $this->buildMiddleware();
-        self::assertNull($method->invoke($middleware, 'relative/path'));
+        self::assertNull(PkceFlow::sanitizeNext('relative/path'));
     }
 
     // =========================================================================
