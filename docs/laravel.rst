@@ -38,7 +38,7 @@ Generate a secure cookie secret (64 hex characters):
 
 .. code-block:: bash
 
-   php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
+   php artisan zitadel:generate-secret
 
 
 Configuration
@@ -55,6 +55,30 @@ This creates ``config/zitadel.php`` in your application. The four required value
 read from environment variables by default, so publishing is only necessary when you
 need to change optional settings such as ``protect_all``, ``ignored_routes``, or
 ``scopes``.
+
+
+Wiring Middleware
+-----------------
+
+:php:class:`Zitadel\Sdk\Bridge\Laravel\ZitadelServiceProvider` registers a ``zitadel()``
+macro on Laravel 11's ``Middleware`` builder — mirroring Sanctum's ``statefulApi()``
+pattern. In ``bootstrap/app.php``:
+
+.. code-block:: php
+
+   use Illuminate\Foundation\Application;
+   use Illuminate\Foundation\Configuration\Exceptions;
+   use Illuminate\Foundation\Configuration\Middleware;
+
+   return Application::configure(basePath: dirname(__DIR__))
+       ->withRouting(web: __DIR__ . '/../routes/web.php')
+       ->withMiddleware(fn (Middleware $middleware) => $middleware->zitadel())
+       ->withExceptions(fn (Exceptions $exceptions) => $exceptions)
+       ->create();
+
+Cookie-encryption exclusion for ``__nextgen_auth`` and ``__nextgen_pkce`` is applied
+automatically inside the service provider — no manual ``encryptCookies(except: [...])``
+call is needed.
 
 
 Protecting Routes
@@ -215,6 +239,38 @@ manage the PKCE flow independently:
 
    Route::middleware('auth:zitadel')->group(function () {
        Route::get('/api/profile', ProfileController::class);
+   });
+
+
+Login / Logout Events
+---------------------
+
+The SDK dispatches two events via Laravel's ``event()`` helper:
+
+- :php:class:`Zitadel\Sdk\Event\ZitadelLoginEvent` — fired by ``CallbackController`` after
+  the access token is validated and before the browser is redirected.
+- :php:class:`Zitadel\Sdk\Event\ZitadelLogoutEvent` — fired by ``LogoutController`` before
+  the end-session redirect.
+
+Register listeners in ``AppServiceProvider::boot()`` or an ``EventServiceProvider``:
+
+.. code-block:: php
+
+   use Illuminate\Support\Facades\Event;
+   use Zitadel\Sdk\Event\ZitadelLoginEvent;
+   use Zitadel\Sdk\Event\ZitadelLogoutEvent;
+
+   Event::listen(ZitadelLoginEvent::class, function (ZitadelLoginEvent $event): void {
+       $claims = $event->claims;
+       // Sync user record, update last_seen timestamp, write audit log, etc.
+       User::updateOrCreate(
+           ['sub' => $claims->sub],
+           ['name' => $claims->name, 'email' => $claims->email, 'last_login_at' => now()],
+       );
+   });
+
+   Event::listen(ZitadelLogoutEvent::class, function (ZitadelLogoutEvent $event): void {
+       // Clean up user-specific state, write audit log, etc.
    });
 
 

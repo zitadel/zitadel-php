@@ -29,10 +29,19 @@ All five examples use the same `.env` keys:
 SERVER_URL="http://localhost:3000"          # base URL of your app (no trailing slash)
 ZITADEL_ISSUER_URL="https://…zitadel.cloud" # your Zitadel instance URL
 ZITADEL_CLIENT_ID="…"                       # application client ID
-ZITADEL_COOKIE_SECRET="…"                   # 64-char hex — php -r "echo bin2hex(random_bytes(32));"
+ZITADEL_COOKIE_SECRET="…"                   # 64-char hex — see generate-secret commands below
 ZITADEL_POST_LOGIN_URL="/profile"           # where to send the user after login
 ZITADEL_POST_LOGOUT_URL="/"                 # where to send the user after logout
 ```
+
+Generate a secure `ZITADEL_COOKIE_SECRET` with the built-in command for each framework:
+
+| Framework | Command |
+|-----------|---------|
+| CodeIgniter 4 | `php spark zitadel:generate-secret` |
+| Laravel | `php artisan zitadel:generate-secret` |
+| Symfony | `php bin/console zitadel:generate-secret` |
+| Phalcon / Yii | `php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"` |
 
 The redirect URI is computed from `SERVER_URL + /zitadel/callback` in most
 frameworks' config files. For CodeIgniter 4, the base class auto-derives it
@@ -128,19 +137,14 @@ return [
 
 ### Wire middleware — `bootstrap/app.php`
 
-Append `ZitadelMiddleware` to the `web` group. Cookie-encryption exclusion is
-handled automatically by `ZitadelServiceProvider`:
+`ZitadelServiceProvider` registers a `zitadel()` macro on Laravel 11's
+`Middleware` builder (mirrors Sanctum's `statefulApi()` pattern). Use it as a
+one-liner — cookie-encryption exclusion is handled automatically:
 
 ```php
-use Zitadel\Sdk\Bridge\Laravel\Http\Middleware\ZitadelMiddleware;
-
 return Application::configure(basePath: dirname(__DIR__))
-    ->withMiddleware(function (Middleware $middleware) {
-        // Laravel 11's MiddlewareManager is separate from the router's group
-        // definitions, so ZitadelMiddleware must be appended here explicitly.
-        // Cookie-encryption exclusion is handled automatically by ZitadelServiceProvider.
-        $middleware->web(append: [ZitadelMiddleware::class]);
-    })->create();
+    ->withMiddleware(fn (Middleware $middleware) => $middleware->zitadel())
+    ->create();
 ```
 
 ### Routes — `routes/web.php`
@@ -180,6 +184,32 @@ class ProfileController extends Controller
         ]);
     }
 }
+```
+
+### Login / logout events
+
+`ZitadelLoginEvent` fires in `CallbackController` after successful token
+validation. `ZitadelLogoutEvent` fires in `LogoutController` before the
+end-session redirect. Both use the standard Laravel `event()` helper:
+
+```php
+use Illuminate\Support\Facades\Event;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
+
+// In AppServiceProvider::boot() or an EventServiceProvider:
+Event::listen(ZitadelLoginEvent::class, function (ZitadelLoginEvent $event) {
+    $claims = $event->claims;
+    // Sync user record, update last_seen, log audit entry, etc.
+    User::updateOrCreate(
+        ['sub' => $claims->sub],
+        ['name' => $claims->name, 'email' => $claims->email, 'last_login_at' => now()],
+    );
+});
+
+Event::listen(ZitadelLogoutEvent::class, function (ZitadelLogoutEvent $event) {
+    // Clean up user-specific state, write audit log, etc.
+});
 ```
 
 ---
@@ -266,6 +296,48 @@ final class ProfileController extends AbstractController
 `ClaimsValueResolver` registered by the bundle. No request attribute
 access needed.
 
+### Login / logout events
+
+`ZitadelListener` dispatches events via the PSR-14 `EventDispatcherInterface`
+(injected automatically by Symfony's DI). Register listeners in the usual way:
+
+```yaml
+# config/services.yaml
+App\EventListener\ZitadelLoginListener:
+    tags:
+        - { name: kernel.event_listener, event: Zitadel\Sdk\Event\ZitadelLoginEvent }
+```
+
+```php
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
+
+final class ZitadelLoginListener
+{
+    public function __invoke(ZitadelLoginEvent $event): void
+    {
+        $claims = $event->claims;
+        // Sync user, update last_seen, audit log, etc.
+    }
+}
+```
+
+Or use `#[AsEventListener]`:
+
+```php
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+
+#[AsEventListener]
+final class ZitadelLoginListener
+{
+    public function __invoke(ZitadelLoginEvent $event): void
+    {
+        // $event->claims is the validated Claims object
+    }
+}
+```
+
 ---
 
 ## Phalcon
@@ -319,7 +391,7 @@ use Zitadel\Sdk\Config\ZitadelConfig;
 return static function (DiInterface $di, array $config): void {
     // … session, view, router services …
 
-    ZitadelServiceProvider::register($di, ZitadelConfig::fromArray([
+    ZitadelServiceProvider::create($di, ZitadelConfig::fromArray([
         'issuer_url'          => $config['zitadel']['issuerUrl'],
         'client_id'           => $config['zitadel']['clientId'],
         'redirect_uri'        => rtrim($config['app']['serverUrl'], '/') . '/zitadel/callback',
@@ -331,9 +403,11 @@ return static function (DiInterface $di, array $config): void {
 };
 ```
 
-`ZitadelServiceProvider::register()` registers `zitadelConfig`, `zitadelValidator`,
-and `zitadelPlugin` in the DI container and attaches the plugin to both the
-`application` and `dispatch` event managers automatically.
+`ZitadelServiceProvider` implements `Phalcon\Di\ServiceProviderInterface` and
+can be used with `$di->register(new ZitadelServiceProvider($config))` or the
+`create()` static convenience alias. It registers `zitadelConfig`,
+`zitadelValidator`, and `zitadelPlugin` in the DI container and attaches the
+plugin to both the `application` and `dispatch` event managers automatically.
 
 ### Controllers
 
@@ -366,6 +440,27 @@ final class ProfileController extends Controller
         $this->view->pick('profile/show');
     }
 }
+```
+
+### Login / logout events
+
+`ZitadelPlugin` and `ZitadelMicroPlugin` fire events through Phalcon's events
+manager — the same manager passed to `$eventsManager->attach('application', ...)`.
+Attach your listener before the application handles the request:
+
+```php
+use Phalcon\Events\Event;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
+
+$eventsManager->attach('zitadel:afterLogin', function (Event $event, mixed $source, ZitadelLoginEvent $loginEvent) {
+    $claims = $loginEvent->claims;
+    // Sync user, update last_seen, audit log, etc.
+});
+
+$eventsManager->attach('zitadel:afterLogout', function (Event $event, mixed $source, ZitadelLogoutEvent $logoutEvent) {
+    // Clean up, audit log, etc.
+});
 ```
 
 ---
@@ -476,6 +571,41 @@ final readonly class ProfileAction
 }
 ```
 
+### Login / logout events
+
+`ZitadelMiddleware` accepts an optional `?EventDispatcherInterface $eventDispatcher`
+(PSR-14) as the fifth constructor argument. Wire it via Yii's DI config:
+
+```php
+use Psr\EventDispatcher\EventDispatcherInterface;
+use Zitadel\Sdk\Bridge\Yii\ZitadelMiddleware;
+
+// In config/web/di.php — add the dispatcher to the ZitadelMiddleware definition:
+ZitadelMiddleware::class => [
+    'class' => ZitadelMiddleware::class,
+    '__construct()' => [
+        // ... existing config, urlMatcher, responseFactory ...
+        'eventDispatcher' => \Yiisoft\Definitions\Reference::to(EventDispatcherInterface::class),
+    ],
+],
+```
+
+Listen using Yii's standard PSR-14 event listener registration:
+
+```php
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+
+// Your listener:
+final class ZitadelLoginListener
+{
+    public function __invoke(ZitadelLoginEvent $event): void
+    {
+        $claims = $event->claims;
+        // Sync user record, update last_seen, etc.
+    }
+}
+```
+
 ---
 
 ## CodeIgniter 4
@@ -575,6 +705,26 @@ final class ProfileController extends BaseController
 
 CI4 does not use PSR-7 request attributes, so claims are accessed via the
 static `ZitadelHolder::claims()` rather than `$request->getAttribute()`.
+
+### Login / logout events
+
+`ZitadelPreFilter` fires CI4 native events via `Events::trigger()`. Register
+listeners in `app/Config/Events.php`:
+
+```php
+use CodeIgniter\Events\Events;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
+
+Events::on('zitadel_login', function (ZitadelLoginEvent $event): void {
+    $claims = $event->claims;
+    // Sync user, update last_seen, write audit log, etc.
+});
+
+Events::on('zitadel_logout', function (ZitadelLogoutEvent $event): void {
+    // Clean up, audit log, etc.
+});
+```
 
 ---
 

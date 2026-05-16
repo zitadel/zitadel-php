@@ -42,6 +42,12 @@ Generate a secure cookie secret (64 hex characters):
 
    php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
 
+.. note::
+
+   Phalcon does not ship a console component, so there is no ``zitadel:generate-secret``
+   command. Use the one-liner above or generate it in any other framework and copy the
+   value.
+
 
 Micro Application
 -----------------
@@ -114,7 +120,7 @@ avoiding the need to name every constructor argument:
    use Zitadel\Sdk\Bridge\Phalcon\ZitadelServiceProvider;
    use Zitadel\Sdk\Config\ZitadelConfig;
 
-   ZitadelServiceProvider::register($di, ZitadelConfig::fromArray([
+   ZitadelServiceProvider::create($di, ZitadelConfig::fromArray([
        'issuer_url'          => $config['zitadel']['issuerUrl'],
        'client_id'           => $config['zitadel']['clientId'],
        'redirect_uri'        => rtrim($config['app']['serverUrl'], '/') . '/zitadel/callback',
@@ -124,9 +130,19 @@ avoiding the need to name every constructor argument:
        'protect_all'         => true,
    ]));
 
-``ZitadelServiceProvider::register()`` registers ``zitadelConfig``, ``zitadelValidator``,
-and ``zitadelPlugin`` in the DI container and attaches the plugin to both the
-``application`` and ``dispatch`` event managers.
+:php:class:`Zitadel\Sdk\Bridge\Phalcon\ZitadelServiceProvider` implements
+``Phalcon\Di\ServiceProviderInterface`` and can be used in two ways:
+
+.. code-block:: php
+
+   // Option A — standard DI provider pattern
+   $di->register(new ZitadelServiceProvider($config));
+
+   // Option B — static convenience alias (equivalent)
+   ZitadelServiceProvider::create($di, $config);
+
+Both register ``zitadelConfig``, ``zitadelValidator``, and ``zitadelPlugin`` in the DI
+container and attach the plugin to both the ``application`` and ``dispatch`` event managers.
 
 Entry Point
 ~~~~~~~~~~~
@@ -254,6 +270,42 @@ name and action method, so the plugin can reflect on them:
 
    :php:class:`Zitadel\Sdk\Attribute\AllowAnonymous` is **not supported** in Micro
    mode. Use ``ignoredRoutes`` instead.
+
+
+Login / Logout Events
+---------------------
+
+Both :php:class:`Zitadel\Sdk\Bridge\Phalcon\ZitadelPlugin` (MVC) and
+:php:class:`Zitadel\Sdk\Bridge\Phalcon\ZitadelMicroPlugin` (Micro) fire Phalcon events
+through the application's events manager:
+
+- ``zitadel:afterLogin`` — fired after successful PKCE callback, carries a
+  :php:class:`Zitadel\Sdk\Event\ZitadelLoginEvent` as the third argument.
+- ``zitadel:afterLogout`` — fired on the logout path, carries a
+  :php:class:`Zitadel\Sdk\Event\ZitadelLogoutEvent` as the third argument.
+
+Attach listeners to the same ``EventsManager`` that the plugin is registered on:
+
+.. code-block:: php
+
+   use Phalcon\Events\Event;
+   use Zitadel\Sdk\Event\ZitadelLoginEvent;
+   use Zitadel\Sdk\Event\ZitadelLogoutEvent;
+
+   $eventsManager->attach(
+       'zitadel:afterLogin',
+       function (Event $event, mixed $source, ZitadelLoginEvent $loginEvent): void {
+           $claims = $loginEvent->claims;
+           // Sync user record, update last_seen, write audit log, etc.
+       }
+   );
+
+   $eventsManager->attach(
+       'zitadel:afterLogout',
+       function (Event $event, mixed $source, ZitadelLogoutEvent $logoutEvent): void {
+           // Clean up, audit log, etc.
+       }
+   );
 
 
 Forwarding Tokens
