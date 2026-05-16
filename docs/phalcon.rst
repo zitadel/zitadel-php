@@ -104,33 +104,29 @@ MVC Application
 Service Registration
 ~~~~~~~~~~~~~~~~~~~~
 
-Register the plugin and attach it to the events manager in ``app/config/services.php``:
+Register Zitadel via the static service provider in ``app/config/services.php``.
+``ZitadelConfig::fromArray()`` accepts a plain PHP array with snake_case keys,
+avoiding the need to name every constructor argument:
 
 .. code-block:: php
 
-   use Phalcon\Events\Manager as EventsManager;
-   use Zitadel\Sdk\Auth\JwksCache;
-   use Zitadel\Sdk\Auth\TokenValidator;
-   use Zitadel\Sdk\Bridge\Phalcon\ZitadelPlugin;
+   use Phalcon\Di\DiInterface;
+   use Zitadel\Sdk\Bridge\Phalcon\ZitadelServiceProvider;
    use Zitadel\Sdk\Config\ZitadelConfig;
 
-   $config = new ZitadelConfig(
-       issuerUrl:     $_ENV['ZITADEL_ISSUER_URL'],
-       clientId:      $_ENV['ZITADEL_CLIENT_ID'],
-       redirectUri:   $_ENV['ZITADEL_REDIRECT_URI'],
-       cookieSecret:  $_ENV['ZITADEL_COOKIE_SECRET'],
-       protectAll:    true,
-       ignoredRoutes: ['/health'],
-   );
+   ZitadelServiceProvider::register($di, ZitadelConfig::fromArray([
+       'issuer_url'          => $config['zitadel']['issuerUrl'],
+       'client_id'           => $config['zitadel']['clientId'],
+       'redirect_uri'        => rtrim($config['app']['serverUrl'], '/') . '/zitadel/callback',
+       'cookie_secret'       => $config['zitadel']['cookieSecret'],
+       'post_login_redirect' => $config['zitadel']['postLoginUrl'],
+       'post_logout_redirect'=> $config['zitadel']['postLogoutUrl'],
+       'protect_all'         => true,
+   ]));
 
-   $plugin = new ZitadelPlugin($config, new TokenValidator($config, new JwksCache()));
-
-   $eventsManager = new EventsManager();
-   $eventsManager->attach('application', $plugin);
-   $eventsManager->attach('dispatch',    $plugin);
-
-   $app->setEventsManager($eventsManager);
-   $app->getDI()->get('dispatcher')->setEventsManager($eventsManager);
+``ZitadelServiceProvider::register()`` registers ``zitadelConfig``, ``zitadelValidator``,
+and ``zitadelPlugin`` in the DI container and attaches the plugin to both the
+``application`` and ``dispatch`` event managers.
 
 Entry Point
 ~~~~~~~~~~~

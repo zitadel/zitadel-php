@@ -34,9 +34,13 @@ ZITADEL_POST_LOGIN_URL="/profile"           # where to send the user after login
 ZITADEL_POST_LOGOUT_URL="/"                 # where to send the user after logout
 ```
 
-`ZITADEL_REDIRECT_URI` is **not** an env var. The redirect URI is always
-computed as `SERVER_URL + /zitadel/callback`. Register that exact URL as
-the allowed callback in your Zitadel application settings.
+The redirect URI is computed from `SERVER_URL + /zitadel/callback` in most
+frameworks' config files. For CodeIgniter 4, the base class auto-derives it
+from `SERVER_URL` when `ZITADEL_REDIRECT_URI` is not set. Register that URL
+as the allowed callback in your Zitadel application settings.
+
+`ZITADEL_PROTECT_ALL=true` is a CI4-specific env var (the other frameworks set
+`protect_all` in their PHP/YAML config). Set it to require auth on every route.
 
 The Zitadel application **must** be configured as a **User Agent** (public
 PKCE client). No client secret is needed or used.
@@ -124,24 +128,18 @@ return [
 
 ### Wire middleware — `bootstrap/app.php`
 
-Add `ZitadelMiddleware` to the `web` group and exclude the PKCE cookies
-from Laravel's cookie encryption (the SDK encrypts them itself):
+Append `ZitadelMiddleware` to the `web` group. Cookie-encryption exclusion is
+handled automatically by `ZitadelServiceProvider`:
 
 ```php
 use Zitadel\Sdk\Bridge\Laravel\Http\Middleware\ZitadelMiddleware;
-use Illuminate\Session\Middleware\StartSession;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
-use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->web(append: [
-            StartSession::class,
-            ShareErrorsFromSession::class,
-            ValidateCsrfToken::class,
-            ZitadelMiddleware::class,
-        ]);
-        $middleware->encryptCookies(except: ['__nextgen_pkce', '__nextgen_auth']);
+        // Laravel 11's MiddlewareManager is separate from the router's group
+        // definitions, so ZitadelMiddleware must be appended here explicitly.
+        // Cookie-encryption exclusion is handled automatically by ZitadelServiceProvider.
+        $middleware->web(append: [ZitadelMiddleware::class]);
     })->create();
 ```
 
@@ -308,55 +306,34 @@ return [
 ];
 ```
 
-### Bootstrap — `public/index.php`
+### Bootstrap — `config/services.php`
 
-Build `ZitadelConfig`, construct `ZitadelPlugin`, and attach it to both
-the `application` and `dispatch` event managers:
+Register Zitadel via the static service provider. `ZitadelConfig::fromArray()`
+accepts a plain snake_case PHP array, removing the need to name every argument:
 
 ```php
-use Zitadel\Sdk\Auth\JwksCache;
-use Zitadel\Sdk\Auth\TokenValidator;
-use Zitadel\Sdk\Bridge\Phalcon\ZitadelPlugin;
+use Phalcon\Di\DiInterface;
+use Zitadel\Sdk\Bridge\Phalcon\ZitadelServiceProvider;
 use Zitadel\Sdk\Config\ZitadelConfig;
-use Phalcon\Events\Manager as EventsManager;
-use Phalcon\Mvc\Application;
-use Phalcon\Mvc\Dispatcher;
 
-$config = require dirname(__DIR__) . '/config/config.php';
-$di     = new FactoryDefault();
+return static function (DiInterface $di, array $config): void {
+    // … session, view, router services …
 
-$zitadelConfig = new ZitadelConfig(
-    issuerUrl:          $config['zitadel']['issuerUrl'],
-    clientId:           $config['zitadel']['clientId'],
-    redirectUri:        rtrim($config['app']['serverUrl'], '/') . '/zitadel/callback',
-    cookieSecret:       $config['zitadel']['cookieSecret'],
-    postLoginRedirect:  $config['zitadel']['postLoginUrl'],
-    postLogoutRedirect: $config['zitadel']['postLogoutUrl'],
-    protectAll:         true,
-);
-$plugin = new ZitadelPlugin($zitadelConfig, new TokenValidator($zitadelConfig, new JwksCache()));
-
-$eventsManager = new EventsManager();
-$eventsManager->attach('application', $plugin);
-$eventsManager->attach('dispatch',    $plugin);
-
-$di->setShared('dispatcher', function () use ($eventsManager) {
-    $dispatcher = new Dispatcher();
-    $dispatcher->setDefaultNamespace('App\\Controllers');
-    $dispatcher->setEventsManager($eventsManager);
-    return $dispatcher;
-});
-
-$application = new Application($di);
-$application->setEventsManager($eventsManager);
-
-// ZitadelPlugin may short-circuit the request (redirect / callback) and
-// return false from handle(). Guard before calling send().
-$result = $application->handle($_SERVER['REQUEST_URI']);
-if ($result !== false) {
-    $result->send();
-}
+    ZitadelServiceProvider::register($di, ZitadelConfig::fromArray([
+        'issuer_url'          => $config['zitadel']['issuerUrl'],
+        'client_id'           => $config['zitadel']['clientId'],
+        'redirect_uri'        => rtrim($config['app']['serverUrl'], '/') . '/zitadel/callback',
+        'cookie_secret'       => $config['zitadel']['cookieSecret'],
+        'post_login_redirect' => $config['zitadel']['postLoginUrl'],
+        'post_logout_redirect'=> $config['zitadel']['postLogoutUrl'],
+        'protect_all'         => true,
+    ]));
+};
 ```
+
+`ZitadelServiceProvider::register()` registers `zitadelConfig`, `zitadelValidator`,
+and `zitadelPlugin` in the DI container and attaches the plugin to both the
+`application` and `dispatch` event managers automatically.
 
 ### Controllers
 
@@ -509,119 +486,58 @@ final readonly class ProfileAction
 composer require zitadel/sdk
 ```
 
-CI4 loads `.env` natively — no `vlucas/phpdotenv` required. Use CI4's
-`env()` helper everywhere; **do not** read from `$_ENV` directly.
+CI4 loads `.env` natively — no `vlucas/phpdotenv` required.
 
-CI4's filter system instantiates filter classes with `new ClassName()` —
-no constructor injection. The solution is a thin wrapper that pulls from
-the `Services` container.
+### Publish config stub
 
-### Configure — `app/Config/Services.php`
+Run once to create `app/Config/Zitadel.php`:
 
-```php
-use Zitadel\Sdk\Auth\JwksCache;
-use Zitadel\Sdk\Auth\TokenValidator;
-use Zitadel\Sdk\Config\ZitadelConfig;
-
-class Services extends BaseServices
-{
-    public static function zitadelConfig(bool $getShared = true): ZitadelConfig
-    {
-        if ($getShared) {
-            return static::getSharedInstance('zitadelConfig');
-        }
-
-        $serverUrl = rtrim((string) env('SERVER_URL', 'http://localhost:3000'), '/');
-
-        return new ZitadelConfig(
-            issuerUrl:          (string) env('ZITADEL_ISSUER_URL', ''),
-            clientId:           (string) env('ZITADEL_CLIENT_ID', ''),
-            redirectUri:        $serverUrl . '/zitadel/callback',
-            cookieSecret:       (string) env('ZITADEL_COOKIE_SECRET', ''),
-            postLoginRedirect:  (string) env('ZITADEL_POST_LOGIN_URL', '/profile'),
-            postLogoutRedirect: (string) env('ZITADEL_POST_LOGOUT_URL', '/'),
-            protectAll:         true,
-        );
-    }
-
-    public static function zitadelValidator(bool $getShared = true): TokenValidator
-    {
-        if ($getShared) {
-            return static::getSharedInstance('zitadelValidator');
-        }
-
-        return new TokenValidator(
-            static::zitadelConfig(false),
-            new JwksCache(),
-        );
-    }
-}
+```bash
+php spark zitadel:publish
 ```
 
-### Filter wrapper — `app/Filters/ZitadelFilterWrapper.php`
+The generated file is an intentionally empty subclass. All settings come from
+env vars; add properties only to hard-code values in PHP instead:
 
 ```php
-use CodeIgniter\Filters\FilterInterface;
-use Config\Services;
-use Zitadel\Sdk\Bridge\CodeIgniter\ZitadelFilter;
+namespace Config;
+use Zitadel\Sdk\Bridge\CodeIgniter\Config\Zitadel as BaseZitadel;
 
-final readonly class ZitadelFilterWrapper implements FilterInterface
-{
-    private ZitadelFilter $inner;
-
-    public function __construct()
-    {
-        $this->inner = new ZitadelFilter(
-            Services::zitadelConfig(false),
-            Services::zitadelValidator(false),
-        );
-    }
-
-    public function before(RequestInterface $request, $arguments = null): ?ResponseInterface
-    {
-        return $this->inner->before($request, $arguments);
-    }
-
-    public function after(RequestInterface $request, ResponseInterface $response, $arguments = null): ResponseInterface
-    {
-        return $this->inner->after($request, $response, $arguments);
-    }
-}
+// Override any property here, or leave empty and use .env only:
+class Zitadel extends BaseZitadel {}
 ```
 
-### Register globally — `app/Config/Filters.php`
+### Configure — `.env`
 
-```php
-use App\Filters\ZitadelFilterWrapper;
-
-class Filters extends BaseConfig
-{
-    public array $aliases = ['zitadel' => ZitadelFilterWrapper::class];
-    public array $globals = ['before' => ['zitadel'], 'after' => []];
-}
+```dotenv
+CI_ENVIRONMENT=development
+SERVER_URL=http://localhost:3000       # derives redirect URI automatically
+ZITADEL_ISSUER_URL=https://my.zitadel.cloud
+ZITADEL_CLIENT_ID=your-client-id
+ZITADEL_COOKIE_SECRET=<64-char-hex>   # php -r "echo bin2hex(random_bytes(32));"
+ZITADEL_PROTECT_ALL=true              # require auth on every route
+ZITADEL_POST_LOGIN_URL=/profile
+ZITADEL_POST_LOGOUT_URL=/
 ```
+
+The redirect URI is derived as `SERVER_URL + /zitadel/callback`. Set
+`ZITADEL_REDIRECT_URI` explicitly to override.
+
+No changes to `Services.php`, `Filters.php`, or `Routes.php` are needed:
+
+- **Filter auto-registration** — `Config\Registrar` in the SDK registers `ZitadelFilter`
+  as a global before-filter via CI4's Composer module discovery.
+- **Self-configuration** — `ZitadelFilter` calls `config('Zitadel')` internally,
+  resolving `app/Config/Zitadel.php` automatically.
 
 ### Routes — `app/Config/Routes.php`
 
-The PKCE callback and logout paths must be registered as routes so CI4
-runs before-filters on them. The controller is never actually reached for
-those paths — `ZitadelFilter` intercepts and responds first.
+Register only application routes. The callback and logout paths are handled by
+the filter before any controller runs — no route entries needed for them:
 
 ```php
 $routes->get('/', 'HomeController::index');
 $routes->get('/profile', 'ProfileController::show');
-$routes->get('/zitadel/callback', 'ZitadelController::callback');
-$routes->get('/zitadel/logout',   'ZitadelController::logout');
-$routes->set404Override('HomeController::notFound');
-```
-
-### `.env` — set `CI_ENVIRONMENT`
-
-CI4 **requires** `CI_ENVIRONMENT` to be set. Without it the framework
-defaults to `production` and fails to boot in a dev environment:
-
-```dotenv
-CI_ENVIRONMENT=development
 ```
 
 ### Controllers

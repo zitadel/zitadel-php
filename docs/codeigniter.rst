@@ -29,8 +29,9 @@ CI4 reads ``.env`` automatically when the file exists in the project root:
 
    ZITADEL_ISSUER_URL=https://my.zitadel.cloud
    ZITADEL_CLIENT_ID=your-client-id
-   ZITADEL_REDIRECT_URI=https://myapp.com/zitadel/callback
    ZITADEL_COOKIE_SECRET=
+   SERVER_URL=https://myapp.com
+   ZITADEL_PROTECT_ALL=true
 
 Generate a secure cookie secret (64 hex characters):
 
@@ -38,29 +39,33 @@ Generate a secure cookie secret (64 hex characters):
 
    php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
 
+The redirect URI is derived automatically as ``SERVER_URL + /zitadel/callback``.
+Set ``ZITADEL_REDIRECT_URI`` explicitly only if you need to override this.
+Register the computed URI as the allowed callback in your Zitadel application settings.
+
 
 Configuration
 -------------
 
-Copy the SDK's base config into your application so CI4 can find it by short name,
-then change the namespace from ``Zitadel\Sdk\Bridge\CodeIgniter\Config`` to ``Config``:
+Run the publish command once to create ``app/Config/Zitadel.php``:
 
 .. code-block:: bash
 
-   cp vendor/zitadel/sdk/lib/Bridge/CodeIgniter/Config/Zitadel.php app/Config/Zitadel.php
+   php spark zitadel:publish
 
-Edit ``app/Config/Zitadel.php``:
+The generated file is an intentionally empty subclass. All settings are read from
+environment variables, so the file only exists to let CI4 resolve it by short name.
+Add properties here only to override a value in code instead of via ``.env``:
 
 .. code-block:: php
 
-   namespace Config;                        // ← change only this line
+   namespace Config;
 
    use Zitadel\Sdk\Bridge\CodeIgniter\Config\Zitadel as BaseZitadel;
 
    class Zitadel extends BaseZitadel
    {
-       public bool  $protectAll    = true;
-       public array $ignoredRoutes = ['/health'];
+       public array $ignoredRoutes = ['/health', '/public/*'];
    }
 
 That is everything. No changes to ``Services.php`` or ``Filters.php`` are needed:
@@ -86,8 +91,14 @@ Protecting Routes
 Protect all routes (recommended)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Set ``$protectAll`` to ``true`` and list public paths in ``$ignoredRoutes`` in
-``app/Config/Zitadel.php``:
+Set ``ZITADEL_PROTECT_ALL=true`` in ``.env``. Public paths are exempted via
+``$ignoredRoutes`` or the ``#[AllowAnonymous]`` attribute (see *Opting Out* below):
+
+.. code-block:: ini
+
+   ZITADEL_PROTECT_ALL=true
+
+To hard-code the setting instead of using an env var, set it in ``app/Config/Zitadel.php``:
 
 .. code-block:: php
 
@@ -100,8 +111,8 @@ Set ``$protectAll`` to ``true`` and list public paths in ``$ignoredRoutes`` in
 Protect specific routes
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Leave ``$protectAll`` at its default (``false``) and enumerate protected paths in
-``$protectedRoutes``:
+Leave ``ZITADEL_PROTECT_ALL`` unset (defaults to ``false``) and enumerate protected
+paths in ``$protectedRoutes`` in ``app/Config/Zitadel.php``:
 
 .. code-block:: php
 
@@ -146,13 +157,13 @@ Opting Out
 Per-path (configuration)
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Add paths to ``$ignoredRoutes`` in ``app/Config/Zitadel.php``:
+Add paths to ``$ignoredRoutes`` in ``app/Config/Zitadel.php``. Entries ending with
+``*`` are treated as prefix wildcards:
 
 .. code-block:: php
 
    class Zitadel extends BaseZitadel
    {
-       public bool  $protectAll    = true;
        public array $ignoredRoutes = ['/health', '/public/*'];
    }
 
