@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Zitadel\Sdk\Bridge\Symfony\EventListener;
 
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -18,6 +19,8 @@ use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
 use Zitadel\Sdk\Config\ZitadelConfig;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
 use Zitadel\Sdk\Exception\PkceException;
 
 /**
@@ -52,8 +55,9 @@ readonly class ZitadelListener implements EventSubscriberInterface
      * @param TokenValidator $validator JWT validator backed by the shared JWKS cache.
      */
     public function __construct(
-        private ZitadelConfig  $config,
-        private TokenValidator $validator,
+        private ZitadelConfig           $config,
+        private TokenValidator          $validator,
+        private EventDispatcherInterface $dispatcher,
     ) {
     }
 
@@ -377,6 +381,8 @@ readonly class ZitadelListener implements EventSubscriberInterface
         $maxAge = max(0, $claims->exp - time());
         $secure = $request->isSecure();
 
+        $this->dispatcher->dispatch(new ZitadelLoginEvent($claims));
+
         $response = new RedirectResponse($next);
         $response->headers->setCookie(new Cookie(
             '__nextgen_auth',
@@ -412,6 +418,8 @@ readonly class ZitadelListener implements EventSubscriberInterface
      */
     private function handleLogout(\Symfony\Component\HttpFoundation\Request $request): Response
     {
+        $this->dispatcher->dispatch(new ZitadelLogoutEvent());
+
         $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);
         $response = new RedirectResponse($this->config->endSessionEndpoint() . '?' . $params);
         $response->headers->setCookie(new Cookie(

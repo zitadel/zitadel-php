@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Zitadel\Sdk\Bridge\Yii;
 
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -17,6 +18,8 @@ use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
 use Zitadel\Sdk\Config\ZitadelConfig;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
 
 /**
  * PSR-15 middleware for Yii 3 applications.
@@ -67,10 +70,11 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
      * @param UrlMatcherInterface      $urlMatcher      Yii URL matcher used for `#[AllowAnonymous]` reflection.
      */
     public function __construct(
-        private ZitadelConfig            $config,
-        private TokenValidator           $validator,
-        private ResponseFactoryInterface $responseFactory,
-        private UrlMatcherInterface      $urlMatcher,
+        private ZitadelConfig             $config,
+        private TokenValidator            $validator,
+        private ResponseFactoryInterface  $responseFactory,
+        private UrlMatcherInterface       $urlMatcher,
+        private ?EventDispatcherInterface $eventDispatcher = null,
     ) {
     }
 
@@ -345,6 +349,8 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
         $secure = $isSecure ? '; Secure' : '';
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
 
+        $this->eventDispatcher?->dispatch(new ZitadelLoginEvent($claims));
+
         return $this->responseFactory->createResponse(302)
             ->withAddedHeader('Set-Cookie', $pkceDeleteCookie)
             ->withAddedHeader('Set-Cookie', "__nextgen_auth={$tokenToValidate}; Max-Age={$maxAge}; Path=/; HttpOnly; SameSite=Lax{$secure}")
@@ -360,6 +366,8 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
      */
     private function handleLogout(ServerRequestInterface $request, bool $isSecure): ResponseInterface
     {
+        $this->eventDispatcher?->dispatch(new ZitadelLogoutEvent());
+
         $params = http_build_query([
             'client_id'                => $this->config->clientId,
             'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri(),

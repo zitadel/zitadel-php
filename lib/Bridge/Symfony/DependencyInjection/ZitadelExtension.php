@@ -12,6 +12,7 @@ use Zitadel\Sdk\Auth\JwksCacheInterface;
 use Zitadel\Sdk\Auth\TokenType;
 use Zitadel\Sdk\Auth\TokenValidator;
 use Zitadel\Sdk\Bridge\Symfony\ArgumentResolver\ClaimsValueResolver;
+use Zitadel\Sdk\Bridge\Symfony\Command\ZitadelGenerateSecretCommand;
 use Zitadel\Sdk\Bridge\Symfony\EventListener\ZitadelListener;
 use Zitadel\Sdk\Config\ZitadelConfig;
 
@@ -100,5 +101,10 @@ final class ZitadelExtension extends Extension
             ->setShared(true)
             ->setPublic(false)
             ->addTag('controller.argument_value_resolver', ['priority' => 50]);
+
+        $container->register(ZitadelGenerateSecretCommand::class, ZitadelGenerateSecretCommand::class)
+            ->setShared(true)
+            ->setPublic(false)
+            ->addTag('console.command');
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Zitadel\Sdk\Bridge\Phalcon;
 
+use Phalcon\Events\ManagerInterface as EventsManagerInterface;
 use Phalcon\Http\Request;
 use Phalcon\Http\Response;
 use Phalcon\Mvc\Micro;
@@ -13,6 +14,8 @@ use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
 use Zitadel\Sdk\Config\ZitadelConfig;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
 use Zitadel\Sdk\Exception\PkceException;
 
 /**
@@ -89,7 +92,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
 
         // Handle callback
         if ($path === $this->config->callbackPath) {
-            $response = $this->handleCallback($request);
+            $response = $this->handleCallback($request, $application->getEventsManager());
             $di->set('response', $response);
             $response->send();
             $application->stop();
@@ -98,7 +101,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
 
         // Handle logout
         if ($path === $this->config->logoutPath) {
-            $response = $this->handleLogout($request);
+            $response = $this->handleLogout($request, $application->getEventsManager());
             $di->set('response', $response);
             $response->send();
             $application->stop();
@@ -255,7 +258,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
      * @param Request $request The callback request containing `code` and `state` query params.
      * @return Response A redirect response, or a 400 error response on any validation failure.
      */
-    private function handleCallback(Request $request): Response
+    private function handleCallback(Request $request, ?EventsManagerInterface $eventsManager = null): Response
     {
         // Determine Secure flag early — needed for PKCE cookie deletion on every error exit,
         // including the first two paths where the cookie is absent or tampered.
@@ -308,6 +311,10 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
         $maxAge = max(0, $claims->exp - time());
 
+        if ($eventsManager !== null) {
+            $eventsManager->fire('zitadel:afterLogin', $this, new ZitadelLoginEvent($claims));
+        }
+
         header($this->buildCookieHeader('__nextgen_auth', $tokenToValidate, $maxAge, $secure), false);
         header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
 
@@ -323,8 +330,12 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
      * @param Request $request The logout request (scheme is used for the cookie Secure flag).
      * @return Response A redirect response to the OIDC end-session endpoint.
      */
-    private function handleLogout(Request $request): Response
+    private function handleLogout(Request $request, ?EventsManagerInterface $eventsManager = null): Response
     {
+        if ($eventsManager !== null) {
+            $eventsManager->fire('zitadel:afterLogout', $this, new ZitadelLogoutEvent());
+        }
+
         $secure = $request->isSecure();
         header($this->buildCookieHeader('__nextgen_auth', '', 0, $secure), false);
 

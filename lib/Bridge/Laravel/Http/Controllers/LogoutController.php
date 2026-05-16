@@ -7,6 +7,7 @@ namespace Zitadel\Sdk\Bridge\Laravel\Http\Controllers;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Zitadel\Sdk\Config\ZitadelConfig;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
 
 /**
  * Clears the session cookie and redirects to Zitadel's end-session endpoint.
@@ -44,6 +45,8 @@ readonly class LogoutController
             'client_id'                => $this->config->clientId,
             'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri(),
         ]);
+
+        event(new ZitadelLogoutEvent());
 
         $response = redirect($this->config->endSessionEndpoint() . '?' . $params);
 

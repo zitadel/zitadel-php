@@ -11,6 +11,7 @@ use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
 use Zitadel\Sdk\Config\ZitadelConfig;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
 use Zitadel\Sdk\Exception\PkceException;
 
 /**
@@ -102,6 +103,8 @@ readonly class CallbackController
 
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
         $maxAge = max(0, $claims->exp - time());
+
+        event(new ZitadelLoginEvent($claims));
 
         // Delete the PKCE state cookie and set the auth token cookie.
         // Both withCookie/cookie calls return a new response — chain them.

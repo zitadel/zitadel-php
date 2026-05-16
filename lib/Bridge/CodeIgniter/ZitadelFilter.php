@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Zitadel\Sdk\Bridge\CodeIgniter;
 
+use CodeIgniter\Events\Events;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\RequestInterface;
@@ -16,6 +17,8 @@ use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
 use Zitadel\Sdk\Bridge\CodeIgniter\Config\Zitadel as ZitadelCIConfig;
 use Zitadel\Sdk\Config\ZitadelConfig;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
 use Zitadel\Sdk\Exception\PkceException;
 
 /**
@@ -341,6 +344,8 @@ class ZitadelFilter implements FilterInterface
         $maxAge = max(0, $claims->exp - time());
         $secure = $request->isSecure();
 
+        Events::trigger('zitadel_login', new ZitadelLoginEvent($claims));
+
         $response = response()->redirect($next);
         $response->setCookie('__nextgen_auth', $tokenToValidate, $maxAge, '', '/', '', $secure, true, 'Lax');
         $response->deleteCookie('__nextgen_pkce', '', '/');
@@ -356,6 +361,8 @@ class ZitadelFilter implements FilterInterface
      */
     protected function handleLogout(IncomingRequest $request): ResponseInterface
     {
+        Events::trigger('zitadel_logout', new ZitadelLogoutEvent());
+
         $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);
         $response = response()->redirect($this->config->endSessionEndpoint() . '?' . $params);
         $response->setCookie('__nextgen_auth', '', 1, '', '/', '', $request->isSecure(), true, 'Lax');

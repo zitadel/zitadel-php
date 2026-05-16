@@ -6,6 +6,7 @@ namespace Zitadel\Sdk\Bridge\Phalcon;
 
 use Phalcon\Di\DiInterface;
 use Phalcon\Events\Event;
+use Phalcon\Events\ManagerInterface as EventsManagerInterface;
 use Phalcon\Http\Request;
 use Phalcon\Http\Response;
 use Phalcon\Mvc\Application;
@@ -16,6 +17,8 @@ use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
 use Zitadel\Sdk\Config\ZitadelConfig;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
 use Zitadel\Sdk\Exception\PkceException;
 
 /**
@@ -103,7 +106,7 @@ readonly class ZitadelPlugin
 
         // Handle callback
         if ($path === $this->config->callbackPath) {
-            $response = $this->handleCallback($request, $di);
+            $response = $this->handleCallback($request, $di, $application->getEventsManager());
             $di->set('response', $response);
             $response->send();
             return false;
@@ -111,7 +114,7 @@ readonly class ZitadelPlugin
 
         // Handle logout
         if ($path === $this->config->logoutPath) {
-            $response = $this->handleLogout($request);
+            $response = $this->handleLogout($request, $application->getEventsManager());
             $di->set('response', $response);
             $response->send();
             return false;
@@ -325,7 +328,7 @@ readonly class ZitadelPlugin
      * @param DiInterface $di      The DI container (unused here but present for symmetry with callers).
      * @return Response A redirect response, or a 400 error response on any validation failure.
      */
-    private function handleCallback(Request $request, DiInterface $di): Response
+    private function handleCallback(Request $request, DiInterface $di, ?EventsManagerInterface $eventsManager = null): Response
     {
         // Determine Secure flag early — needed for PKCE cookie deletion on every error exit,
         // including the first two paths where the cookie is absent or tampered.
@@ -378,6 +381,10 @@ readonly class ZitadelPlugin
         $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
         $maxAge = max(0, $claims->exp - time());
 
+        if ($eventsManager !== null) {
+            $eventsManager->fire('zitadel:afterLogin', $this, new ZitadelLoginEvent($claims));
+        }
+
         // Use header() directly with replace=false so both Set-Cookie headers survive.
         // Phalcon's Headers::send() calls header() with replace=true (the default), which
         // means the second Set-Cookie would silently overwrite the first, losing the auth
@@ -399,8 +406,12 @@ readonly class ZitadelPlugin
      * @param Request $request The logout request (scheme is used for the cookie Secure flag).
      * @return Response A redirect response to the OIDC end-session endpoint.
      */
-    private function handleLogout(Request $request): Response
+    private function handleLogout(Request $request, ?EventsManagerInterface $eventsManager = null): Response
     {
+        if ($eventsManager !== null) {
+            $eventsManager->fire('zitadel:afterLogout', $this, new ZitadelLogoutEvent());
+        }
+
         $secure = $request->isSecure();
         header($this->buildCookieHeader('__nextgen_auth', '', 0, $secure), false);
 
