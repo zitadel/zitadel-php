@@ -156,6 +156,10 @@ readonly class ZitadelConfig
             );
         }
 
+        if (trim($clientId) === '') {
+            throw new \InvalidArgumentException('[zitadel] clientId must not be empty.');
+        }
+
         if (
             !str_starts_with($issuerUrl, 'https://') &&
             !str_starts_with($issuerUrl, 'http://localhost') &&
@@ -281,6 +285,18 @@ readonly class ZitadelConfig
         // default is correct for all standard PKCE flows. Pass audience: null only when
         // you intentionally want to skip audience validation (not recommended).
         $this->audience = $audience ?? $clientId;
+
+        // Validate that every resolved audience entry is a non-empty string.
+        // An empty-string audience (e.g. audience: '') becomes [''] and would match a
+        // token carrying aud: '' — an inadvertent bypass of audience validation.
+        foreach ((array) $this->audience as $aud) {
+            if (!is_string($aud) || $aud === '') {
+                throw new \InvalidArgumentException(
+                    '[zitadel] Each audience entry must be a non-empty string. ' .
+                    'Pass audience: null to skip audience validation.'
+                );
+            }
+        }
     }
 
     /**

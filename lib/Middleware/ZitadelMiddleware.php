@@ -153,6 +153,16 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         $uri    = $request->getUri();
         $suffix = substr($uri->getPath(), strlen(rtrim($this->config->proxyPath, '/')));
         $query  = $uri->getQuery();
+
+        // Reject path traversal — a suffix containing '..' could resolve to an
+        // unintended path on the issuer server even though the host stays the same.
+        if (str_contains($suffix, '..')) {
+            $response = $this->responseFactory->createResponse(400);
+            $response->getBody()->write('Bad Request');
+
+            return $response->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        }
+
         $target = $this->config->issuerUrl . $suffix . ($query !== '' ? '?' . $query : '');
 
         $headers = [];
@@ -266,6 +276,15 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.')
+                ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
+        }
+
+        // Defence-in-depth: confirm the token contains only base64url + '.' before
+        // embedding it in a Set-Cookie header value. TokenValidator already verifies
+        // the structure, but an explicit guard here prevents a compromised IdP from
+        // injecting CRLF sequences through a crafted token string.
+        if (preg_match('/^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/', $tokenToValidate) !== 1) {
+            return $this->badRequest('Authentication failed — token contains unsafe characters.')
                 ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
         }
 

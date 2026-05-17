@@ -51,6 +51,7 @@ final class HttpProxy
      */
     private const INTERNAL_HEADERS = [
         'x-nextgen-auth-token',
+        'cookie', // Never forward session cookies to the upstream auth backend
     ];
 
     private function __construct()

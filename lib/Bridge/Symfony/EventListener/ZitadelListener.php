@@ -259,8 +259,13 @@ readonly class ZitadelListener implements EventSubscriberInterface
     {
         $proxyPath = rtrim($this->config->proxyPath, '/');
         $suffix    = substr($request->getPathInfo(), strlen($proxyPath));
-        $query     = $request->getQueryString();
-        $target    = $this->config->issuerUrl . $suffix . ($query !== null && $query !== '' ? '?' . $query : '');
+
+        if (str_contains($suffix, '..')) {
+            return new Response('Bad Request', 400, ['Content-Type' => 'text/plain; charset=utf-8']);
+        }
+
+        $query  = $request->getQueryString();
+        $target = $this->config->issuerUrl . $suffix . ($query !== null && $query !== '' ? '?' . $query : '');
 
         $headers = [];
         foreach ($request->headers->all() as $name => $values) {
@@ -373,6 +378,12 @@ readonly class ZitadelListener implements EventSubscriberInterface
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             $response = $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
+            $response->headers->setCookie($pkceDeleteCookie);
+            return $response;
+        }
+
+        if (preg_match('/^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/', $tokenToValidate) !== 1) {
+            $response = $this->badRequest('Authentication failed — token contains unsafe characters.');
             $response->headers->setCookie($pkceDeleteCookie);
             return $response;
         }

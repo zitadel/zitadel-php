@@ -101,6 +101,12 @@ readonly class CallbackController
                 ->withCookie($deletePkce);
         }
 
+        // Defence-in-depth: confirm the token is header-safe before writing the cookie.
+        if (preg_match('/^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/', $tokenToValidate) !== 1) {
+            return $this->badRequest('Authentication failed — token contains unsafe characters.')
+                ->withCookie($deletePkce);
+        }
+
         $next   = PkceFlow::sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
         $maxAge = max(0, $claims->exp - time());
 

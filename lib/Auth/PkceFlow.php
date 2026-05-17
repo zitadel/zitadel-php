@@ -126,6 +126,7 @@ final class PkceFlow
             CURLOPT_TIMEOUT        => $config->httpTimeoutSeconds,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_MAXFILESIZE    => 524_288, // 512 KB — token responses are typically < 2 KB
             CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
         ]);
 
@@ -236,6 +237,13 @@ final class PkceFlow
             return null;
         }
 
+        // Reject control characters (CR, LF, NUL, etc.) that could be used for
+        // header injection when $next is placed in a Location: response header.
+        // Also cap length to 2048 characters — a safe upper bound for any real path.
+        if (strlen($next) > 2048 || preg_match('/[\x00-\x1F\x7F]/', $next) === 1) {
+            return null;
+        }
+
         return $next;
     }
 
@@ -270,8 +278,15 @@ final class PkceFlow
         }
 
         // Fall back to id_token (always a signed JWS in OIDC).
+        // Apply the same three-non-empty-segment guard used for access_token above.
         $idToken = $tokens['id_token'] ?? null;
+        if (is_string($idToken) && substr_count($idToken, '.') === 2) {
+            $parts = explode('.', $idToken);
+            if ($parts[0] !== '' && $parts[1] !== '' && $parts[2] !== '') {
+                return $idToken;
+            }
+        }
 
-        return is_string($idToken) ? $idToken : null;
+        return null;
     }
 }

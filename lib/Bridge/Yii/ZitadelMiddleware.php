@@ -228,6 +228,14 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
     {
         $uri    = $request->getUri();
         $suffix = substr($uri->getPath(), strlen(rtrim($this->config->proxyPath, '/')));
+
+        if (str_contains($suffix, '..')) {
+            $response = $this->responseFactory->createResponse(400);
+            $response->getBody()->write('Bad Request');
+
+            return $response->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        }
+
         $query  = $uri->getQuery();
         $target = $this->config->issuerUrl . $suffix . ($query !== '' ? '?' . $query : '');
 
@@ -342,6 +350,12 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.')
+                ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
+        }
+
+        // Defence-in-depth: confirm the token is header-safe before writing the cookie.
+        if (preg_match('/^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/', $tokenToValidate) !== 1) {
+            return $this->badRequest('Authentication failed — token contains unsafe characters.')
                 ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
         }
 

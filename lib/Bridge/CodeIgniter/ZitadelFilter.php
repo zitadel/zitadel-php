@@ -225,8 +225,16 @@ class ZitadelFilter implements FilterInterface
     {
         $proxyPath = rtrim($this->config->proxyPath, '/');
         $suffix    = substr('/' . ltrim($request->getPath(), '/'), strlen($proxyPath));
-        $query     = $request->getUri()->getQuery();
-        $target    = $this->config->issuerUrl . $suffix . ($query !== '' ? '?' . $query : '');
+
+        if (str_contains($suffix, '..')) {
+            return service('response')
+                ->setStatusCode(400)
+                ->setContentType('text/plain; charset=utf-8')
+                ->setBody('Bad Request');
+        }
+
+        $query  = $request->getUri()->getQuery();
+        $target = $this->config->issuerUrl . $suffix . ($query !== '' ? '?' . $query : '');
 
         $headers = [];
         foreach ($_SERVER as $key => $value) {
@@ -340,6 +348,13 @@ class ZitadelFilter implements FilterInterface
         $claims = $this->validator->validate($tokenToValidate);
         if ($claims === null) {
             $response = $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
+            $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
+            return $response;
+        }
+
+        // Defence-in-depth: confirm the token is header-safe before writing the cookie.
+        if (preg_match('/^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/', $tokenToValidate) !== 1) {
+            $response = $this->badRequest('Authentication failed — token contains unsafe characters.');
             $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
             return $response;
         }

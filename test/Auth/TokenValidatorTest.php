@@ -502,11 +502,11 @@ final class TokenValidatorTest extends TestCase
     }
 
     /**
-     * A missing `aud` claim results in `[null]` during the intersection check.
-     * `null == ''` is true in PHP, so a loosely-compared intersection of [''] and
-     * [null] would incorrectly succeed. The string-only filter must block this.
+     * A token with no `aud` claim must be rejected when an audience value is required.
+     * The `aud` claim is then `null`, and the intersection with the required audience
+     * must not pass — we filter for string-only values before intersection.
      */
-    public function testRejectsMissingAudWhenAudienceIsEmptyString(): void
+    public function testRejectsMissingAudWhenAudienceIsRequired(): void
     {
         [$token, $mockCache] = $this->buildRs256Token([
             'sub' => 'u',
@@ -521,9 +521,27 @@ final class TokenValidatorTest extends TestCase
             clientId:     'client-id',
             redirectUri:  'https://myapp.com/callback',
             cookieSecret: bin2hex(random_bytes(32)),
-            audience:     '',
+            audience:     'expected-audience',
         );
         self::assertNull((new TokenValidator($config, $mockCache))->validate($token));
+    }
+
+    /**
+     * Passing an empty-string audience to ZitadelConfig must throw immediately so
+     * misconfigured deployments fail fast rather than silently rejecting all tokens.
+     */
+    public function testThrowsOnEmptyStringAudience(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/audience/i');
+
+        new ZitadelConfig(
+            issuerUrl:    'https://example.zitadel.cloud',
+            clientId:     'client-id',
+            redirectUri:  'https://myapp.com/callback',
+            cookieSecret: bin2hex(random_bytes(32)),
+            audience:     '',
+        );
     }
 
     /**

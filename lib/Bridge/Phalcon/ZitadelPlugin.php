@@ -256,8 +256,17 @@ readonly class ZitadelPlugin
         $proxyPath = rtrim($this->config->proxyPath, '/');
         $rawPath   = '/' . ltrim($request->getURI(true), '/');
         $suffix    = substr($rawPath, strlen($proxyPath));
-        $query     = $_SERVER['QUERY_STRING'] ?? '';
-        $target    = $this->config->issuerUrl . $suffix . ($query !== '' ? '?' . $query : '');
+
+        if (str_contains($suffix, '..')) {
+            $response = new Response();
+            $response->setStatusCode(400);
+            $response->setContentType('text/plain', 'utf-8');
+            $response->setContent('Bad Request');
+            return $response;
+        }
+
+        $query  = $_SERVER['QUERY_STRING'] ?? '';
+        $target = $this->config->issuerUrl . $suffix . ($query !== '' ? '?' . $query : '');
 
         $headers = [];
         foreach ($_SERVER as $key => $value) {
@@ -376,6 +385,12 @@ readonly class ZitadelPlugin
         if ($claims === null) {
             header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
+        }
+
+        // Defence-in-depth: confirm the token is header-safe before writing the cookie.
+        if (preg_match('/^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/', $tokenToValidate) !== 1) {
+            header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
+            return $this->badRequest('Authentication failed — token contains unsafe characters.');
         }
 
         $next   = PkceFlow::sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
