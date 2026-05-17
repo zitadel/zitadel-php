@@ -122,6 +122,12 @@ final class ZitadelServiceProvider extends ServiceProvider
 
         $router->pushMiddlewareToGroup('web', ZitadelMiddleware::class);
 
+        // Register a short middleware alias so developers can write:
+        //   Route::middleware('zitadel')->group(...)
+        // This matches the pattern used by tymon/jwt-auth ('jwt.auth' etc.) and gives
+        // fine-grained per-route control without referencing the full class path.
+        $router->aliasMiddleware('zitadel', ZitadelMiddleware::class);
+
         Auth::extend('zitadel', static fn ($app) => new ZitadelGuard($app['request']));
     }
 }

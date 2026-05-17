@@ -61,7 +61,7 @@ readonly class ZitadelMiddleware
         }
 
         // Ignored routes pass through immediately
-        if ($this->matchesRoutes($path, $this->config->ignoredRoutes)) {
+        if (PkceFlow::matchesRoutes($path, $this->config->ignoredRoutes)) {
             $request->attributes->set('zitadel.claims', null);
 
             return $next($request);
@@ -85,7 +85,7 @@ readonly class ZitadelMiddleware
         }
 
         // Protect route
-        if ($this->config->protectAll || $this->matchesRoutes($path, $this->config->protectedRoutes)) {
+        if ($this->config->protectAll || PkceFlow::matchesRoutes($path, $this->config->protectedRoutes)) {
             $verifier  = PkceFlow::generateCodeVerifier();
             $state     = PkceFlow::generateState();
             $challenge = PkceFlow::generateCodeChallenge($verifier);
@@ -170,28 +170,4 @@ readonly class ZitadelMiddleware
         return false;
     }
 
-    /**
-     * Returns true when `$path` matches any entry in `$routes`.
-     *
-     * Entries ending with `*` are treated as prefix wildcards. All other entries
-     * are matched by strict equality.
-     *
-     * @param string   $path   The request path to test.
-     * @param string[] $routes Route patterns to match against.
-     * @return bool True if any pattern matches the given path.
-     */
-    private function matchesRoutes(string $path, array $routes): bool
-    {
-        foreach ($routes as $pattern) {
-            if (str_ends_with($pattern, '*')) {
-                if (str_starts_with($path, substr($pattern, 0, -1))) {
-                    return true;
-                }
-            } elseif ($path === $pattern) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }

@@ -109,7 +109,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
         }
 
         // Ignored routes pass through
-        if ($this->matchesRoutes($path, $this->config->ignoredRoutes)) {
+        if (PkceFlow::matchesRoutes($path, $this->config->ignoredRoutes)) {
             $di->set('zitadel.claims', static fn () => null);
             return true;
         }
@@ -134,7 +134,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
         }
 
         // Protect route
-        if ($this->config->protectAll || $this->matchesRoutes($path, $this->config->protectedRoutes)) {
+        if ($this->config->protectAll || PkceFlow::matchesRoutes($path, $this->config->protectedRoutes)) {
             $next = $request->getURI();
             if (!str_starts_with($next, '/')) {
                 $next = '/' . $next;
@@ -308,7 +308,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
             return $this->badRequest('Authentication failed — could not validate the token received from the identity provider.');
         }
 
-        $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
+        $next   = PkceFlow::sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
         $maxAge = max(0, $claims->exp - time());
 
         if ($eventsManager !== null) {
@@ -350,61 +350,6 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
         $response->redirect($this->config->endSessionEndpoint() . '?' . $params, true);
 
         return $response;
-    }
-
-    /**
-     * Returns true when `$path` matches any entry in `$routes`.
-     *
-     * Entries ending with `*` are treated as prefix wildcards. All other entries
-     * are matched by strict equality.
-     *
-     * @param string   $path   The request path to test.
-     * @param string[] $routes Route patterns to match against.
-     * @return bool True if any pattern matches the given path.
-     */
-    private function matchesRoutes(string $path, array $routes): bool
-    {
-        foreach ($routes as $pattern) {
-            if (str_ends_with($pattern, '*')) {
-                if (str_starts_with($path, substr($pattern, 0, -1))) {
-                    return true;
-                }
-            } elseif ($path === $pattern) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Validates that `$next` is a safe relative path suitable for use as a post-login redirect.
-     *
-     * @param string $next The candidate redirect path from the PKCE state cookie.
-     * @return string|null The sanitized path, or null if the input is unsafe.
-     */
-    private function sanitizeNext(string $next): ?string
-    {
-        if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
-            return null;
-        }
-
-        // Reject paths that decode to a protocol-relative URL.
-        // A raw path of "/%2F/evil.com" starts with "/" and passes the literal
-        // "//" check, but decodes to "//evil.com" — an open redirect.
-        if (str_starts_with(rawurldecode($next), '//')) {
-            return null;
-        }
-
-        if (str_contains($next, '\\')) {
-            return null;
-        }
-
-        if (parse_url($next, PHP_URL_SCHEME) !== null) {
-            return null;
-        }
-
-        return $next;
     }
 
     /**

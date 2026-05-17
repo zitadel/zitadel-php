@@ -101,7 +101,7 @@ readonly class CallbackController
                 ->withCookie($deletePkce);
         }
 
-        $next   = $this->sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
+        $next   = PkceFlow::sanitizeNext($pkce['next']) ?? $this->config->postLoginRedirect;
         $maxAge = max(0, $claims->exp - time());
 
         event(new ZitadelLoginEvent($claims));
@@ -121,39 +121,6 @@ readonly class CallbackController
                 'lax'
             )
             ->withCookie($deletePkce);
-    }
-
-    /**
-     * Validates that `$next` is a safe relative path suitable for use as a post-login redirect.
-     *
-     * Rejects absolute URLs, protocol-relative URLs (`//`), and paths containing backslashes
-     * to prevent open-redirect vulnerabilities.
-     *
-     * @param string $next The candidate redirect path from the PKCE state cookie.
-     * @return string|null The sanitized path, or null if the input is unsafe.
-     */
-    private function sanitizeNext(string $next): ?string
-    {
-        if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
-            return null;
-        }
-
-        // Reject paths that decode to a protocol-relative URL.
-        // A raw path of "/%2F/evil.com" starts with "/" and passes the literal
-        // "//" check, but decodes to "//evil.com" — an open redirect.
-        if (str_starts_with(rawurldecode($next), '//')) {
-            return null;
-        }
-
-        if (str_contains($next, '\\')) {
-            return null;
-        }
-
-        if (parse_url($next, PHP_URL_SCHEME) !== null) {
-            return null;
-        }
-
-        return $next;
     }
 
     /**
