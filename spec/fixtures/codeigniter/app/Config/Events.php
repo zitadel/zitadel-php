@@ -5,6 +5,15 @@ namespace Config;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Exceptions\FrameworkException;
 use CodeIgniter\HotReloader\HotReloader;
+use Zitadel\Sdk\Event\ZitadelLoginEvent;
+use Zitadel\Sdk\Event\ZitadelLogoutEvent;
+
+Events::on('zitadel_login',  static function (ZitadelLoginEvent $event): void {
+    error_log('[ZITADEL_EVENT] ZitadelLoginEvent');
+});
+Events::on('zitadel_logout', static function (ZitadelLogoutEvent $event): void {
+    error_log('[ZITADEL_EVENT] ZitadelLogoutEvent');
+});
 
 /*
  * --------------------------------------------------------------------

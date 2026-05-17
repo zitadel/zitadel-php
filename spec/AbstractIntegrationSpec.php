@@ -256,6 +256,47 @@ abstract class AbstractIntegrationSpec extends TestCase
         self::assertStringContainsString('/authorize', $page->url());
     }
 
+    public function testLoginEventIsDispatched(): void
+    {
+        $page    = $this->newPage();
+        $logFile = sys_get_temp_dir() . '/zitadel_fixture_' . static::fixturePort() . '.log';
+        $before  = file_exists($logFile) ? (int) filesize($logFile) : 0;
+
+        $page->goto($this->baseUrl() . '/dashboard');
+        $page->waitForSelector('input[name="username"]');
+        $claims = json_encode(['name' => 'Alice Test', 'email' => 'alice@example.com']);
+        $page->locator('input[name="username"]')->fill('alice');
+        $page->locator('textarea[name="claims"]')->fill((string) $claims);
+        $page->locator('input[type="submit"]')->click();
+        $page->waitForURL($this->baseUrl() . '/dashboard');
+
+        $newLog = file_exists($logFile) ? substr((string) file_get_contents($logFile), $before) : '';
+        self::assertStringContainsString('[ZITADEL_EVENT] ZitadelLoginEvent', $newLog, 'ZitadelLoginEvent must be written to stderr after a successful login');
+    }
+
+    public function testLogoutEventIsDispatched(): void
+    {
+        $page    = $this->newPage();
+        $logFile = sys_get_temp_dir() . '/zitadel_fixture_' . static::fixturePort() . '.log';
+
+        // Authenticate first
+        $page->goto($this->baseUrl() . '/dashboard');
+        $page->waitForSelector('input[name="username"]');
+        $claims = json_encode(['name' => 'Alice Test', 'email' => 'alice@example.com']);
+        $page->locator('input[name="username"]')->fill('alice');
+        $page->locator('textarea[name="claims"]')->fill((string) $claims);
+        $page->locator('input[type="submit"]')->click();
+        $page->waitForURL($this->baseUrl() . '/dashboard');
+
+        // Snapshot log size after login so only logout's output is checked
+        $before = file_exists($logFile) ? (int) filesize($logFile) : 0;
+
+        $page->goto($this->baseUrl() . '/zitadel/logout');
+
+        $newLog = file_exists($logFile) ? substr((string) file_get_contents($logFile), $before) : '';
+        self::assertStringContainsString('[ZITADEL_EVENT] ZitadelLogoutEvent', $newLog, 'ZitadelLogoutEvent must be written to stderr after logout');
+    }
+
     public function testHomeIsAccessibleWithoutAuth(): void
     {
         $page     = $this->newPage();

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Nyholm\Psr7\Factory\Psr17Factory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Yiisoft\Router\FastRoute\UrlMatcher;
 use Yiisoft\Router\RouteCollection;
@@ -19,6 +20,17 @@ $appConfig = require __DIR__ . '/application.php';
 
 return [
     ResponseFactoryInterface::class => Psr17Factory::class,
+
+    EventDispatcherInterface::class => static function (): EventDispatcherInterface {
+        return new class implements EventDispatcherInterface {
+            public function dispatch(object $event): object
+            {
+                $short = (new \ReflectionClass($event))->getShortName();
+                error_log('[ZITADEL_EVENT] ' . $short);
+                return $event;
+            }
+        };
+    },
 
     ZitadelConfig::class => [
         'class' => ZitadelConfig::class,

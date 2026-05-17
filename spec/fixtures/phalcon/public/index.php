@@ -20,6 +20,14 @@ $di     = require __DIR__ . '/../app/config/services.php';
 $plugin = $di->get('zitadelPlugin');
 
 $eventsManager = new EventsManager();
+$eventsManager->attach('zitadel', static function (\Phalcon\Events\Event $event): void {
+    $type = $event->getType();
+    if ($type === 'afterLogin') {
+        error_log('[ZITADEL_EVENT] ZitadelLoginEvent');
+    } elseif ($type === 'afterLogout') {
+        error_log('[ZITADEL_EVENT] ZitadelLogoutEvent');
+    }
+});
 $eventsManager->attach('application', $plugin);
 $eventsManager->attach('dispatch',    $plugin);
 

@@ -28,4 +28,18 @@ final class MezzioSpec extends AbstractIntegrationSpec
     {
         return 9007;
     }
+
+    /** The generic PSR-15 middleware has no event dispatcher wired — skip. */
+    #[\Override]
+    public function testLoginEventIsDispatched(): void
+    {
+        $this->markTestSkipped('Generic PSR-15 ZitadelMiddleware does not dispatch framework events.');
+    }
+
+    /** The generic PSR-15 middleware has no event dispatcher wired — skip. */
+    #[\Override]
+    public function testLogoutEventIsDispatched(): void
+    {
+        $this->markTestSkipped('Generic PSR-15 ZitadelMiddleware does not dispatch framework events.');
+    }
 }
