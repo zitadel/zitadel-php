@@ -140,30 +140,58 @@ final class JwksCacheTest extends TestCase
     }
 
     /**
-     * When the cache entry is expired and the JWKS endpoint is unreachable,
-     * the cache must return the stale key rather than null. Returning null
-     * would reject every in-flight token until the endpoint recovers.
+     * When the cache entry is expired but still within the 2× TTL staleness cap,
+     * the cache must return the stale key rather than null. Returning null would
+     * reject every in-flight token during a brief JWKS endpoint outage.
      */
     public function testExpiredCacheEntryReturnsStaleKeyWhenFetchFails(): void
     {
         $fakeKey  = openssl_pkey_new(['private_key_bits' => 512, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
         self::assertNotFalse($fakeKey);
 
-        // fetchedAt=0 ensures the TTL check (TTL=1) treats the entry as expired.
+        // Use TTL=60; set fetchedAt to 61 seconds ago so the entry is expired
+        // (age > TTL) but still within the 2× staleness cap (age < TTL*2 = 120).
         $cacheKey = 'xyz://nowhere/keys:stale-kid';
         $ref      = new \ReflectionProperty(JwksCache::class, 'store');
         $ref->setValue(null, [
-            $cacheKey => ['key' => $fakeKey, 'fetchedAt' => 0],
+            $cacheKey => ['key' => $fakeKey, 'fetchedAt' => time() - 61],
         ]);
 
         $cache = new JwksCache();
         // 'xyz://' is not a curl-supported scheme — fails instantly with
         // CURLE_UNSUPPORTED_PROTOCOL, no TCP connection made.
-        $result = $cache->getPublicKey('xyz://nowhere/keys', 'stale-kid', 'RS256', 1, 1);
+        $result = $cache->getPublicKey('xyz://nowhere/keys', 'stale-kid', 'RS256', 60, 1);
 
         // The stale key must be served — not null — so tokens are not rejected
         // during a transient JWKS endpoint outage.
         self::assertSame($fakeKey, $result);
+    }
+
+    /**
+     * When the cache entry exceeds the 2× TTL staleness cap and the JWKS endpoint
+     * is unreachable, the cache must return null. This ensures that an operator's
+     * emergency key rotation is honoured within a bounded window rather than the
+     * compromised key being served indefinitely.
+     */
+    public function testOverageStaleEntryReturnsNullWhenFetchFails(): void
+    {
+        $fakeKey = openssl_pkey_new(['private_key_bits' => 512, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        self::assertNotFalse($fakeKey);
+
+        // Use TTL=60; set fetchedAt to 121 seconds ago so the entry exceeds the
+        // 2× staleness cap (age=121 >= TTL*2=120).
+        $cacheKey = 'xyz://nowhere/keys:old-kid';
+        $ref      = new \ReflectionProperty(JwksCache::class, 'store');
+        $ref->setValue(null, [
+            $cacheKey => ['key' => $fakeKey, 'fetchedAt' => time() - 121],
+        ]);
+
+        $cache  = new JwksCache();
+        $result = $cache->getPublicKey('xyz://nowhere/keys', 'old-kid', 'RS256', 60, 1);
+
+        // The entry is beyond the staleness cap — null must be returned so that
+        // a rotated (or revoked) key is no longer honoured after 2× TTL.
+        self::assertNull($result);
     }
 
     /**

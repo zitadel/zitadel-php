@@ -101,7 +101,17 @@ final class JwksCache implements JwksCacheInterface
         if ($jwks === null) {
             // Serve the stale cached entry on a transient fetch failure rather than
             // rejecting every token until the JWKS endpoint recovers.
-            return array_key_exists($cacheKey, self::$store) ? self::$store[$cacheKey]['key'] : null;
+            // Cap the staleness at 2× the configured TTL: this keeps services alive
+            // during brief JWKS outages while ensuring that a compromised key
+            // flagged for emergency rotation cannot be served indefinitely.
+            if (array_key_exists($cacheKey, self::$store)) {
+                $age = $now - self::$store[$cacheKey]['fetchedAt'];
+                if ($age < $ttlSeconds * 2) {
+                    return self::$store[$cacheKey]['key'];
+                }
+            }
+
+            return null;
         }
 
         $key = $this->selectKey($jwks, $kid, $alg);

@@ -219,6 +219,14 @@ final class PkceFlow
      */
     public static function sanitizeNext(string $next): ?string
     {
+        // Strip URL fragments: fragments are browser-only and never sent to the
+        // server, but if preserved in the Location header they can manipulate
+        // client-side hash-based routers or trigger eval-style routing logic.
+        $hashPos = strpos($next, '#');
+        if ($hashPos !== false) {
+            $next = substr($next, 0, $hashPos);
+        }
+
         if (!str_starts_with($next, '/') || str_starts_with($next, '//')) {
             return null;
         }

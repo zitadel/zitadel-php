@@ -424,7 +424,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
         $response->headers->setCookie(new Cookie(
             '__nextgen_pkce',
             '',
-            1,
+            time() - 3600,
             '/',
             null,
             $secure,

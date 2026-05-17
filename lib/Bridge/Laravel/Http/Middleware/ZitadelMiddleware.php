@@ -132,7 +132,7 @@ readonly class ZitadelMiddleware
             $response->headers->setCookie(\Symfony\Component\HttpFoundation\Cookie::create(
                 $name,
                 '',
-                1,
+                time() - 3600,
                 '/',
                 null,
                 $request->isSecure(),
