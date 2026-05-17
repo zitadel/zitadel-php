@@ -50,7 +50,8 @@ return [
     'clock_skew_seconds'      => 5,
     'jwks_ttl_seconds'        => 300,
     'http_timeout_seconds'    => 5,
-    'pkce_cookie_ttl_seconds' => env('ZITADEL_PKCE_COOKIE_TTL_SECONDS', 600),
+    'pkce_cookie_ttl_seconds'    => env('ZITADEL_PKCE_COOKIE_TTL_SECONDS', 600),
+    'trust_x_forwarded_proto'    => env('ZITADEL_TRUST_X_FORWARDED_PROTO', true),
 
     /*
     |--------------------------------------------------------------------------

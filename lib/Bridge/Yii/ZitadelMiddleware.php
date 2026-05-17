@@ -246,7 +246,10 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
 
         // Mirror Next.js/Nuxt behavior: consider X-Forwarded-Proto so that session
         // cookies get the Secure flag even when TLS is terminated at a load balancer.
-        $cookiesSecure = $isSecure || strtolower($request->getHeaderLine('X-Forwarded-Proto')) === 'https';
+        // Only honoured when trustXForwardedProto is true (the default) to allow
+        // deployments behind untrusted networks to opt out.
+        $cookiesSecure = $isSecure || ($this->config->trustXForwardedProto
+            && strtolower($request->getHeaderLine('X-Forwarded-Proto')) === 'https');
 
         $method     = $request->getMethod();
         $hasBody    = !in_array(strtoupper($method), ['GET', 'HEAD'], true);

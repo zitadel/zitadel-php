@@ -93,6 +93,7 @@ class ZitadelFilter implements FilterInterface
                 jwksTtlSeconds:       $cfg->jwksTtlSeconds,
                 httpTimeoutSeconds:   $cfg->httpTimeoutSeconds,
                 pkceCookieTtlSeconds: $cfg->pkceCookieTtlSeconds,
+                trustXForwardedProto: $cfg->trustXForwardedProto,
             );
         }
         $this->config    = $config;
@@ -263,7 +264,8 @@ class ZitadelFilter implements FilterInterface
         $host       = $_SERVER['HTTP_HOST'] ?? $request->getUri()->getHost();
         $proto      = $request->getUri()->getScheme();
         $isSecure   = $request->isSecure()
-            || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+            || ($this->config->trustXForwardedProto
+                && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 
         try {
             $result = HttpProxy::forward(

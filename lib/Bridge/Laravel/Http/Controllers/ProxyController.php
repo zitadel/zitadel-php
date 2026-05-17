@@ -65,8 +65,11 @@ readonly class ProxyController
         $proto      = $request->getScheme();
         // Mirror Next.js/Nuxt behavior: consider X-Forwarded-Proto so that session
         // cookies get the Secure flag even when TLS is terminated at a load balancer.
+        // Only honoured when trustXForwardedProto is true (the default) to allow
+        // deployments behind untrusted networks to opt out.
         $isSecure   = $request->isSecure()
-            || strtolower((string) ($request->headers->get('X-Forwarded-Proto') ?? '')) === 'https';
+            || ($this->config->trustXForwardedProto
+                && strtolower((string) ($request->headers->get('X-Forwarded-Proto') ?? '')) === 'https');
 
         try {
             $result = HttpProxy::forward(

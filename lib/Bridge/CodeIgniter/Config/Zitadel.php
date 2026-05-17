@@ -159,6 +159,12 @@ class Zitadel extends BaseConfig
     /** Lifetime (seconds) of the __nextgen_pkce PKCE state cookie set during login redirect. */
     public int $pkceCookieTtlSeconds = 600;
 
+    /**
+     * Whether to trust the X-Forwarded-Proto header for deciding the Secure cookie flag.
+     * Set to false when the application is not behind a trusted reverse proxy.
+     */
+    public bool $trustXForwardedProto = true;
+
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
@@ -196,6 +202,11 @@ class Zitadel extends BaseConfig
         $envPkceTtl = env('ZITADEL_PKCE_COOKIE_TTL_SECONDS');
         if ($envPkceTtl !== null) {
             $this->pkceCookieTtlSeconds = (int) $envPkceTtl;
+        }
+
+        $envTrustXfp = env('ZITADEL_TRUST_X_FORWARDED_PROTO');
+        if ($envTrustXfp !== null) {
+            $this->trustXForwardedProto = filter_var($envTrustXfp, FILTER_VALIDATE_BOOLEAN);
         }
 
         // Derive redirectUri from SERVER_URL when ZITADEL_REDIRECT_URI is absent.

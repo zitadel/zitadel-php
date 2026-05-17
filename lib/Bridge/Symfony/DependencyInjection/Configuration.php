@@ -62,6 +62,7 @@ readonly class Configuration implements ConfigurationInterface
                 ->integerNode('jwks_ttl_seconds')->defaultValue(300)->end()
                 ->integerNode('http_timeout_seconds')->defaultValue(5)->end()
                 ->integerNode('pkce_cookie_ttl_seconds')->defaultValue(600)->end()
+                ->booleanNode('trust_x_forwarded_proto')->defaultTrue()->end()
                 ->scalarNode('jwks_path')->defaultValue('/oauth/v2/keys')->end()
                 ->scalarNode('authorization_path')->defaultValue('/oauth/v2/authorize')->end()
                 ->scalarNode('token_path')->defaultValue('/oauth/v2/token')->end()

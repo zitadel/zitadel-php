@@ -74,6 +74,7 @@ final class ZitadelExtension extends Extension
                 $config['jwks_ttl_seconds'],
                 $config['http_timeout_seconds'],
                 $config['pkce_cookie_ttl_seconds'],
+                $config['trust_x_forwarded_proto'],
                 $config['jwks_path'],
                 $config['authorization_path'],
                 $config['token_path'],

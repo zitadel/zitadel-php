@@ -97,6 +97,12 @@ readonly class ZitadelConfig
      *                                                  Increase for MFA-heavy flows (passkey
      *                                                  enrollment, device pairing) that take longer
      *                                                  than the default window. Default: `600`
+     * @param bool                 $trustXForwardedProto Whether to trust the `X-Forwarded-Proto`
+     *                                                  header when deciding the `Secure` flag on
+     *                                                  session cookies. Enable only behind a trusted
+     *                                                  reverse proxy or load balancer that strips
+     *                                                  this header from untrusted clients.
+     *                                                  Default: `true`
      * @param string               $jwksPath           URL path for the JWKS endpoint, relative to
      *                                                  `$issuerUrl`. Override for non-Zitadel servers
      *                                                  (e.g. `/jwks` for navikt mock-oauth2-server).
@@ -140,6 +146,7 @@ readonly class ZitadelConfig
         public int                  $jwksTtlSeconds       = 300,
         public int                  $httpTimeoutSeconds   = 5,
         public int                  $pkceCookieTtlSeconds = 600,
+        public bool                 $trustXForwardedProto = true,
         // ── Optional: endpoint path overrides (for non-Zitadel OIDC servers) ─
         public string               $jwksPath           = '/oauth/v2/keys',
         public string               $authorizationPath  = '/oauth/v2/authorize',
@@ -358,6 +365,7 @@ readonly class ZitadelConfig
             jwksTtlSeconds:       (int)     ($get($config, 'jwks_ttl_seconds', 'jwksTtlSeconds')       ?? 300),
             httpTimeoutSeconds:   (int)     ($get($config, 'http_timeout_seconds', 'httpTimeoutSeconds') ?? 5),
             pkceCookieTtlSeconds: (int)     ($get($config, 'pkce_cookie_ttl_seconds', 'pkceCookieTtlSeconds') ?? 600),
+            trustXForwardedProto: (bool)    ($get($config, 'trust_x_forwarded_proto', 'trustXForwardedProto') ?? true),
             jwksPath:           (string)  ($get($config, 'jwks_path', 'jwksPath')           ?? '/oauth/v2/keys'),
             authorizationPath:  (string)  ($get($config, 'authorization_path', 'authorizationPath')  ?? '/oauth/v2/authorize'),
             tokenPath:          (string)  ($get($config, 'token_path', 'tokenPath')          ?? '/oauth/v2/token'),

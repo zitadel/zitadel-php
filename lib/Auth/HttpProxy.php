@@ -54,6 +54,13 @@ final class HttpProxy
         'cookie', // Never forward session cookies to the upstream auth backend
     ];
 
+    /**
+     * Maximum allowed size (bytes) of the request body forwarded to the upstream.
+     * Requests to the proxy path are JWKS/token exchanges that never have large bodies;
+     * an oversized body is a strong signal of a DoS attempt and is rejected early.
+     */
+    private const int MAX_REQUEST_BODY_BYTES = 1_048_576; // 1 MB
+
     private function __construct()
     {
     }
@@ -227,6 +234,10 @@ final class HttpProxy
         }
 
         $hasBody = !in_array(strtoupper($method), ['GET', 'HEAD'], true);
+
+        if ($hasBody && strlen($body) > self::MAX_REQUEST_BODY_BYTES) {
+            throw new \RuntimeException('[zitadel] Proxy request body exceeds the 1 MB limit.');
+        }
 
         $opts = [
             CURLOPT_CUSTOMREQUEST  => strtoupper($method),
