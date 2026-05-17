@@ -119,10 +119,10 @@ readonly class ZitadelListener implements EventSubscriberInterface
         }
 
         // Extract token (Bearer wins over cookie)
-        $bearer = $request->headers->get('Authorization');
+        $bearer = $request->headers->get('Authorization') ?? '';
         $token  = null;
-        if ($bearer !== null && str_starts_with($bearer, 'Bearer ')) {
-            $token = substr($bearer, 7);
+        if (preg_match('/^Bearer\s+(\S+)$/i', $bearer, $m)) {
+            $token = $m[1];
         } else {
             $cookie = $request->cookies->get('__nextgen_auth');
             if (is_string($cookie) && $cookie !== '') {

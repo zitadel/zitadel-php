@@ -195,11 +195,12 @@ final class JwksCache implements JwksCacheInterface
             $algOk = $kid !== null || !isset($k['alg']) || $k['alg'] === $alg;
 
             // Verify the JWK key type matches the algorithm family.
-            // An RSA key must not be selected for an EC algorithm and vice versa,
-            // even when the kid matches — using the wrong key type causes
-            // openssl_verify() to return -1 (error) rather than 0 (bad signature),
-            // which makes it harder to diagnose and slightly more expensive.
-            $ktyOk = $algorithm === null || !isset($k['kty']) || $k['kty'] === $algorithm->expectedKty();
+            // RFC 7517 §4.1 makes `kty` required; skip keys that omit it so we
+            // never select an unknown key type. An RSA key must not be selected
+            // for an EC algorithm and vice versa, even when the kid matches —
+            // using the wrong key type causes openssl_verify() to return -1
+            // (error) rather than 0 (bad signature).
+            $ktyOk = $algorithm === null || (isset($k['kty']) && $k['kty'] === $algorithm->expectedKty());
 
             // For EC algorithms verify the key is on the correct curve.
             // ES256 requires P-256, ES384 requires P-384, ES512 requires P-521.
@@ -210,6 +211,10 @@ final class JwksCache implements JwksCacheInterface
 
             return $useOk && $kidOk && $algOk && $ktyOk && $crvOk;
         });
+
+        // Re-index so callers always get a zero-based list regardless of which
+        // entries array_filter() removed.
+        $candidates = array_values($candidates);
 
         foreach ($candidates as $jwk) {
             try {

@@ -88,7 +88,7 @@ readonly class ZitadelConfig
      * @param int                  $jwksTtlSeconds     How long (seconds) a fetched JWKS key set is
      *                                                  cached in-process before re-fetching.
      *                                                  Lower values reduce the window in which a
-     *                                                  revoked key can still be used. Default: `60`
+     *                                                  revoked key can still be used. Default: `300`
      * @param int                  $httpTimeoutSeconds Timeout (seconds) for HTTP calls: JWKS key
      *                                                  fetch and authorization code exchange.
      *                                                  Default: `5`
@@ -132,7 +132,7 @@ readonly class ZitadelConfig
         public array                $allowedTokenTypes  = [TokenType::JWT, TokenType::AtJWT],
         string|array|null           $audience           = null,
         public int                  $clockSkewSeconds   = 5,
-        public int                  $jwksTtlSeconds     = 60,
+        public int                  $jwksTtlSeconds     = 300,
         public int                  $httpTimeoutSeconds = 5,
         // ── Optional: endpoint path overrides (for non-Zitadel OIDC servers) ─
         public string               $jwksPath           = '/oauth/v2/keys',
@@ -349,7 +349,7 @@ readonly class ZitadelConfig
             allowedTokenTypes:  (array)   ($get($config, 'allowed_token_types', 'allowedTokenTypes')  ?? [TokenType::JWT, TokenType::AtJWT]),
             audience:                      $get($config, 'audience'),
             clockSkewSeconds:   (int)     ($get($config, 'clock_skew_seconds', 'clockSkewSeconds')   ?? 5),
-            jwksTtlSeconds:     (int)     ($get($config, 'jwks_ttl_seconds', 'jwksTtlSeconds')     ?? 60),
+            jwksTtlSeconds:     (int)     ($get($config, 'jwks_ttl_seconds', 'jwksTtlSeconds')     ?? 300),
             httpTimeoutSeconds: (int)     ($get($config, 'http_timeout_seconds', 'httpTimeoutSeconds') ?? 5),
             jwksPath:           (string)  ($get($config, 'jwks_path', 'jwksPath')           ?? '/oauth/v2/keys'),
             authorizationPath:  (string)  ($get($config, 'authorization_path', 'authorizationPath')  ?? '/oauth/v2/authorize'),

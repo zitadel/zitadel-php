@@ -121,8 +121,15 @@ final class JwkConverter
         }
 
         $fieldSize = self::CURVE_FIELD_SIZES[$jwk['crv']];
-        $x         = str_pad(self::base64urlDecode($jwk['x']), $fieldSize, "\x00", STR_PAD_LEFT);
-        $y         = str_pad(self::base64urlDecode($jwk['y']), $fieldSize, "\x00", STR_PAD_LEFT);
+        $xRaw      = self::base64urlDecode($jwk['x']);
+        $yRaw      = self::base64urlDecode($jwk['y']);
+
+        if (strlen($xRaw) > $fieldSize || strlen($yRaw) > $fieldSize) {
+            throw new \InvalidArgumentException('[zitadel] EC coordinate exceeds expected field size.');
+        }
+
+        $x = str_pad($xRaw, $fieldSize, "\x00", STR_PAD_LEFT);
+        $y = str_pad($yRaw, $fieldSize, "\x00", STR_PAD_LEFT);
 
         $point     = "\x04" . $x . $y;
         $algOid    = "\x06\x07\x2a\x86\x48\xce\x3d\x02\x01";

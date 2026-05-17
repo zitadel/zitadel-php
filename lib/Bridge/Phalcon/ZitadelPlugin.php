@@ -129,8 +129,8 @@ readonly class ZitadelPlugin
         // Extract token (Bearer wins over cookie)
         $bearer = $request->getHeader('Authorization');
         $token  = null;
-        if (str_starts_with($bearer, 'Bearer ')) {
-            $token = substr($bearer, 7);
+        if (preg_match('/^Bearer\s+(\S+)$/i', $bearer, $m)) {
+            $token = $m[1];
         } else {
             $cookie = $_COOKIE['__nextgen_auth'] ?? null;
             if (is_string($cookie) && $cookie !== '') {
@@ -431,9 +431,17 @@ readonly class ZitadelPlugin
         header($this->buildCookieHeader('__nextgen_auth', '', 0, $secure), false);
 
         foreach (array_keys($_COOKIE) as $name) {
-            if (str_starts_with((string) $name, '__nextgen') && (string) $name !== '__nextgen_auth') {
-                header($this->buildCookieHeader((string) $name, '', 0, $secure), false);
+            $name = (string) $name;
+            if (!str_starts_with($name, '__nextgen') || $name === '__nextgen_auth') {
+                continue;
             }
+
+            // Guard against cookie-name injection (RFC 6265 §4.1 token chars only).
+            if (preg_match('/^[A-Za-z0-9_\-]+$/', $name) !== 1) {
+                continue;
+            }
+
+            header($this->buildCookieHeader($name, '', 0, $secure), false);
         }
 
         $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);

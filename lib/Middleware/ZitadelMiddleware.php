@@ -356,8 +356,8 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
     private function extractToken(ServerRequestInterface $request): ?string
     {
         $authHeader = $request->getHeaderLine('Authorization');
-        if (str_starts_with($authHeader, 'Bearer ')) {
-            return substr($authHeader, 7);
+        if (preg_match('/^Bearer\s+(\S+)$/i', $authHeader, $m)) {
+            return $m[1];
         }
 
         $cookies = $request->getCookieParams();
@@ -382,12 +382,22 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
         $secure  = $isSecure ? '; Secure' : '';
         $cookies = $request->getCookieParams();
         foreach (array_keys($cookies) as $name) {
-            if (str_starts_with((string) $name, '__nextgen')) {
-                $response = $response->withAddedHeader(
-                    'Set-Cookie',
-                    "{$name}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax{$secure}"
-                );
+            $name = (string) $name;
+            if (!str_starts_with($name, '__nextgen')) {
+                continue;
             }
+
+            // Guard against cookie-name injection: only emit a Set-Cookie header
+            // for names that consist entirely of safe token characters (RFC 6265 §4.1).
+            // A crafted cookie name like "__nextgen=x" would produce a malformed header.
+            if (preg_match('/^[A-Za-z0-9_\-]+$/', $name) !== 1) {
+                continue;
+            }
+
+            $response = $response->withAddedHeader(
+                'Set-Cookie',
+                "{$name}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax{$secure}"
+            );
         }
 
         return $response;

@@ -89,6 +89,11 @@ final class PkceStateCookie
         #[\SensitiveParameter] string $cookieValue,
         #[\SensitiveParameter] string $secret,
     ): ?array {
+        // Validate the key before doing any decoding work — mirrors encrypt() behaviour.
+        if (!self::isValidHex($secret)) {
+            throw new \InvalidArgumentException('[zitadel] cookieSecret is not valid hex.');
+        }
+
         $raw = base64_decode(strtr($cookieValue, '-_', '+/') . str_repeat('=', (4 - strlen($cookieValue) % 4) % 4), true);
         if ($raw === false || strlen($raw) <= SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES) {
             return null;
@@ -96,9 +101,6 @@ final class PkceStateCookie
 
         $nonce  = substr($raw, 0, SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
         $cipher = substr($raw, SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
-        if (!self::isValidHex($secret)) {
-            throw new \InvalidArgumentException('[zitadel] cookieSecret is not valid hex.');
-        }
 
         /** @var string $key */
         $key = hex2bin($secret);

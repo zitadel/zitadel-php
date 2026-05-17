@@ -130,8 +130,8 @@ class ZitadelFilter implements FilterInterface
         // Extract token — Bearer header wins over cookie.
         $bearer = $request->getHeaderLine('Authorization');
         $token  = null;
-        if (str_starts_with($bearer, 'Bearer ')) {
-            $token = substr($bearer, 7);
+        if (preg_match('/^Bearer\s+(\S+)$/i', $bearer, $m)) {
+            $token = $m[1];
         } elseif (is_string($cookie = $request->getCookie('__nextgen_auth')) && $cookie !== '') {
             $token = $cookie;
         }
@@ -186,9 +186,17 @@ class ZitadelFilter implements FilterInterface
         $response = service('response');
         $secure   = $request->isSecure();
         foreach (array_keys((array) $request->getCookie()) as $name) {
-            if (str_starts_with((string) $name, '__nextgen')) {
-                $response->deleteCookie((string) $name, '', '/', '', $secure);
+            $name = (string) $name;
+            if (!str_starts_with($name, '__nextgen')) {
+                continue;
             }
+
+            // Guard against cookie-name injection (RFC 6265 §4.1 token chars only).
+            if (preg_match('/^[A-Za-z0-9_\-]+$/', $name) !== 1) {
+                continue;
+            }
+
+            $response->deleteCookie($name, '', '/', '', $secure);
         }
 
         return null;
@@ -386,9 +394,17 @@ class ZitadelFilter implements FilterInterface
         $response->setCookie('__nextgen_auth', '', 1, '', '/', '', $request->isSecure(), true, 'Lax');
 
         foreach (array_keys((array) $request->getCookie()) as $name) {
-            if (str_starts_with((string) $name, '__nextgen') && (string) $name !== '__nextgen_auth') {
-                $response->deleteCookie((string) $name, '', '/', '', $request->isSecure());
+            $name = (string) $name;
+            if (!str_starts_with($name, '__nextgen') || $name === '__nextgen_auth') {
+                continue;
             }
+
+            // Guard against cookie-name injection (RFC 6265 §4.1 token chars only).
+            if (preg_match('/^[A-Za-z0-9_\-]+$/', $name) !== 1) {
+                continue;
+            }
+
+            $response->deleteCookie($name, '', '/', '', $request->isSecure());
         }
 
         return $response;
