@@ -15,6 +15,7 @@ use Zitadel\Sdk\Auth\TokenType;
 use Zitadel\Sdk\Auth\TokenValidator;
 use Zitadel\Sdk\Bridge\Laravel\Auth\ZitadelGuard;
 use Zitadel\Sdk\Bridge\Laravel\Console\ZitadelGenerateSecretCommand;
+use Zitadel\Sdk\Bridge\Laravel\Http\Middleware\ZitadelAuthenticate;
 use Zitadel\Sdk\Bridge\Laravel\Http\Middleware\ZitadelMiddleware;
 use Zitadel\Sdk\Config\ZitadelConfig;
 
@@ -124,12 +125,27 @@ final class ZitadelServiceProvider extends ServiceProvider
 
         $router->pushMiddlewareToGroup('web', ZitadelMiddleware::class);
 
-        // Register a short middleware alias so developers can write:
-        //   Route::middleware('zitadel')->group(...)
-        // This matches the pattern used by tymon/jwt-auth ('jwt.auth' etc.) and gives
-        // fine-grained per-route control without referencing the full class path.
+        // 'zitadel'      → full PKCE + token middleware (callback, logout, proxy, validation)
+        // 'zitadel.auth' → lightweight per-route guard check only (returns 401/redirect when
+        //                   the guard has no user). Mirrors jwt-auth's 'jwt.auth' alias pattern.
         $router->aliasMiddleware('zitadel', ZitadelMiddleware::class);
+        $router->aliasMiddleware('zitadel.auth', ZitadelAuthenticate::class);
 
-        Auth::extend('zitadel', static fn ($app) => new ZitadelGuard($app['request']));
+        Auth::extend('zitadel', function ($app) {
+            // Pass the event dispatcher so the guard fires Authenticated events
+            // (mirrors jwt-auth's pattern: PHPOpenSourceSaver\JWTAuth\Providers\AbstractServiceProvider).
+            $guard = new ZitadelGuard(
+                $app['request'],
+                $app->make(\Illuminate\Contracts\Events\Dispatcher::class),
+            );
+
+            // Re-bind the guard's request reference whenever the container re-resolves
+            // 'request' (Octane, RoadRunner, long-running workers). Without this, the
+            // guard would hold a stale request from a previous logical HTTP cycle and
+            // return the wrong user. Both jwt-auth and passport use the same pattern.
+            $app->refresh('request', $guard, 'setRequest');
+
+            return $guard;
+        });
     }
 }

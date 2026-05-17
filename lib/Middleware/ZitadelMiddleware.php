@@ -124,7 +124,19 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
 
         // Step 6 — authenticated
         if ($claims !== null) {
-            return $handler->handle($request->withAttribute('zitadel.claims', $claims));
+            $request = $request->withAttribute('zitadel.claims', $claims);
+            // When mezzio/mezzio-authentication is installed, also set the standard
+            // UserInterface::class attribute so mezzio/mezzio-authorization can resolve
+            // roles without a custom adapter. The interface_exists() guard keeps this
+            // branch dead in non-Mezzio runtimes (Slim, etc.) at zero cost.
+            if (interface_exists(\Mezzio\Authentication\UserInterface::class)) {
+                $request = $request->withAttribute(
+                    \Mezzio\Authentication\UserInterface::class,
+                    new \Zitadel\Sdk\Bridge\Mezzio\ZitadelUser($claims),
+                );
+            }
+
+            return $handler->handle($request);
         }
 
         // Step 6a — #[AllowAnonymous] check (Mezzio only: RouteResult set by RouteMiddleware)

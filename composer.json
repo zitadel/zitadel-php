@@ -31,7 +31,9 @@
         "icanhazstring/composer-unused": "^0.9.3",
         "nyholm/psr7": "^1.0",
         "mridang/phpunit-reporters": "^1.0",
-        "symfony/http-client": "^7.4"
+        "symfony/http-client": "^7.4",
+        "mezzio/mezzio-authentication": "^1.0",
+        "symfony/security-core": "^7.0"
     },
     "autoload": {
         "psr-4": {
@@ -72,11 +74,13 @@
     "suggest": {
         "laravel/framework": "^11.0|^12.0|^13.0 — enables ZitadelServiceProvider auto-discovery",
         "symfony/http-kernel": "^7.0|^8.0 — enables ZitadelBundle",
+        "symfony/security-core": "^7.0 — enables $this->getUser() in AbstractController via TokenStorageInterface",
         "yiisoft/router": "^3.0|^4.0 — enables Yii bridge with AllowAnonymous support",
         "codeigniter4/framework": "^4.0 — enables ZitadelFilter",
         "phalcon/phalcon": "v6.0.x-dev — enables Phalcon MVC/Micro plugins",
         "slim/slim": "^4.0 — use core ZitadelMiddleware directly via $app->add()",
-        "mezzio/mezzio": "^3.0 — use core ZitadelMiddleware directly; RouteResult attribute enables AllowAnonymous"
+        "mezzio/mezzio": "^3.0 — use core ZitadelMiddleware directly; RouteResult attribute enables AllowAnonymous",
+        "mezzio/mezzio-authentication": "^1.0 — enables UserInterface::class request attribute for mezzio/mezzio-authorization compatibility"
     },
     "extra": {
         "laravel": {

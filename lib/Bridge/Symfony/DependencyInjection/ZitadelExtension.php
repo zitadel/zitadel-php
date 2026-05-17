@@ -6,6 +6,8 @@ namespace Zitadel\Sdk\Bridge\Symfony\DependencyInjection;
 
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\Extension;
+use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Zitadel\Sdk\Auth\Algorithm;
 use Zitadel\Sdk\Auth\JwksCache;
 use Zitadel\Sdk\Auth\JwksCacheInterface;
@@ -97,11 +99,19 @@ final class ZitadelExtension extends Extension
             ->setPublic(false)
             ->setAutowired(true);
 
-        $container->register(ZitadelListener::class, ZitadelListener::class)
+        $listenerDefinition = $container->register(ZitadelListener::class, ZitadelListener::class)
             ->setShared(true)
             ->setPublic(false)
             ->setAutowired(true)
             ->addTag('kernel.event_subscriber');
+
+        // Wire security.token_storage into the listener so $this->getUser() works in
+        // AbstractController. Only done when symfony/security-core is installed — the
+        // interface_exists() guard keeps the bundle usable without the Security component.
+        // This mirrors what LexikJWT / HWIOAuth do via their AuthenticatorInterface.
+        if (interface_exists(TokenStorageInterface::class) && $container->has('security.token_storage')) {
+            $listenerDefinition->setArgument('$tokenStorage', new Reference('security.token_storage'));
+        }
 
         $container->register(ClaimsValueResolver::class, ClaimsValueResolver::class)
             ->setShared(true)

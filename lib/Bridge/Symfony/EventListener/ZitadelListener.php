@@ -13,11 +13,14 @@ use Symfony\Component\HttpKernel\Event\ControllerEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Zitadel\Sdk\Attribute\AllowAnonymous;
 use Zitadel\Sdk\Auth\HttpProxy;
 use Zitadel\Sdk\Auth\PkceFlow;
 use Zitadel\Sdk\Auth\PkceStateCookie;
 use Zitadel\Sdk\Auth\TokenValidator;
+use Zitadel\Sdk\Bridge\Symfony\Security\ZitadelToken;
+use Zitadel\Sdk\Bridge\Symfony\Security\ZitadelUser;
 use Zitadel\Sdk\Config\ZitadelConfig;
 use Zitadel\Sdk\Event\ZitadelLoginEvent;
 use Zitadel\Sdk\Event\ZitadelLogoutEvent;
@@ -51,13 +54,22 @@ readonly class ZitadelListener implements EventSubscriberInterface
     private const string CLEAR_STALE_COOKIES_ATTR = '_zitadel_clear_stale_cookies';
 
     /**
-     * @param ZitadelConfig  $config    SDK configuration (issuer, cookie secret, route paths).
-     * @param TokenValidator $validator JWT validator backed by the shared JWKS cache.
+     * @param ZitadelConfig             $config       SDK configuration (issuer, cookie secret, route paths).
+     * @param TokenValidator            $validator    JWT validator backed by the shared JWKS cache.
+     * @param EventDispatcherInterface  $dispatcher   Symfony event dispatcher for login/logout events.
+     * @param TokenStorageInterface|null $tokenStorage Optional Symfony Security token storage.
+     *                                                 When provided, the listener stores a
+     *                                                 {@see ZitadelToken} on every authenticated request
+     *                                                 so that `$this->getUser()` in `AbstractController`
+     *                                                 returns the correct {@see ZitadelUser} object.
+     *                                                 Injected by {@see \Zitadel\Sdk\Bridge\Symfony\DependencyInjection\ZitadelExtension}
+     *                                                 only when `symfony/security-core` is installed.
      */
     public function __construct(
-        private ZitadelConfig           $config,
-        private TokenValidator          $validator,
+        private ZitadelConfig            $config,
+        private TokenValidator           $validator,
         private EventDispatcherInterface $dispatcher,
+        private ?TokenStorageInterface   $tokenStorage = null,
     ) {
     }
 
@@ -115,6 +127,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
         // Ignored routes pass through
         if (PkceFlow::matchesRoutes($path, $this->config->ignoredRoutes)) {
             $request->attributes->set('zitadel.claims', null);
+            $this->tokenStorage?->setToken(null);
             return;
         }
 
@@ -134,18 +147,25 @@ readonly class ZitadelListener implements EventSubscriberInterface
 
         if ($claims !== null) {
             $request->attributes->set('zitadel.claims', $claims);
+            // Populate Symfony Security token storage so $this->getUser() works in
+            // AbstractController. This is what LexikJWT, HWIOAuth, and all other serious
+            // Symfony auth libraries do via their AuthenticatorInterface::createToken().
+            // We replicate the effect from the event subscriber side.
+            $this->tokenStorage?->setToken(new ZitadelToken(new ZitadelUser($claims)));
             return;
         }
 
         // Mark for #[AllowAnonymous] check at CONTROLLER event
         if ($this->config->protectAll || PkceFlow::matchesRoutes($path, $this->config->protectedRoutes)) {
             $request->attributes->set(self::PENDING_REDIRECT_ATTR, true);
+            $this->tokenStorage?->setToken(null);
             return;
         }
 
         // Public unauthenticated — mark for stale cookie cleanup at RESPONSE event
         $request->attributes->set('zitadel.claims', null);
         $request->attributes->set(self::CLEAR_STALE_COOKIES_ATTR, true);
+        $this->tokenStorage?->setToken(null);
     }
 
     /**
@@ -172,6 +192,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
         if ($this->controllerHasAllowAnonymous($event->getController())) {
             $request->attributes->remove(self::PENDING_REDIRECT_ATTR);
             $request->attributes->set('zitadel.claims', null);
+            $this->tokenStorage?->setToken(null);
             return;
         }
 

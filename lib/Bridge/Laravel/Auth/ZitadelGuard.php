@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Zitadel\Sdk\Bridge\Laravel\Auth;
 
+use Illuminate\Auth\Events\Authenticated;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Request;
 
 /**
@@ -30,9 +32,38 @@ class ZitadelGuard implements Guard
     // Mutable by design: required by Guard::setUser() and called by actingAs() in test contexts.
     private ?ZitadelUser $user = null;
 
-    /** @param Request $request The current Illuminate HTTP request. */
-    public function __construct(private readonly Request $request)
+    // Whether we have already fired the Authenticated event for this request cycle.
+    // Guards are re-used per request; we fire the event at most once.
+    private bool $eventFired = false;
+
+    /**
+     * @param Request         $request The current Illuminate HTTP request.
+     *                                 Non-readonly so the container can call {@see setRequest()}
+     *                                 when the request binding is refreshed (Octane, long-running workers).
+     * @param Dispatcher|null $events  Optional event dispatcher. Null-safe: omitting it disables
+     *                                 event firing (useful in test contexts that don't boot the full
+     *                                 application container).
+     */
+    public function __construct(
+        private Request        $request,
+        private readonly ?Dispatcher    $events = null,
+    ) {
+    }
+
+    /**
+     * Replaces the request instance held by this guard.
+     *
+     * Called automatically by the container when the `request` binding is
+     * re-resolved (e.g. in Octane between logical requests). Resets the cached
+     * user so the new request is evaluated fresh.
+     *
+     * @param Request $request The new Illuminate HTTP request.
+     */
+    public function setRequest(Request $request): void
     {
+        $this->request   = $request;
+        $this->user      = null;
+        $this->eventFired = false;
     }
 
     /**
@@ -61,14 +92,24 @@ class ZitadelGuard implements Guard
      * Returns the authenticated user for this request, or null if unauthenticated.
      *
      * Lazily resolves the user from the `zitadel.claims` request attribute on first call
-     * and caches the result for the lifetime of this guard instance.
+     * and caches the result for the lifetime of this guard instance. Fires the
+     * {@see \Illuminate\Auth\Events\Authenticated} event on the first successful resolution.
      *
      * @return ZitadelUser|null The authenticated user, or null when no valid claims are present.
      */
     #[\Override]
     public function user(): ?ZitadelUser
     {
-        return $this->user ??= $this->resolve();
+        if ($this->user === null) {
+            $this->user = $this->resolve();
+
+            if ($this->user !== null && !$this->eventFired) {
+                $this->eventFired = true;
+                $this->events?->dispatch(new Authenticated('zitadel', $this->user));
+            }
+        }
+
+        return $this->user;
     }
 
     /**

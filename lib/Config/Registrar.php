@@ -47,4 +47,18 @@ final class Registrar
             'globals'  => ['before' => ['zitadel']],
         ];
     }
+
+    /**
+     * Registers the `zitadel` helper for auto-loading by CI4's module system.
+     *
+     * CI4 discovers this via the `Zitadel\Sdk` Composer PSR-4 root and merges the
+     * returned array into `Config\Autoload`, so `zitadel_claims()` is available in
+     * every controller and view without a manual `helper(['zitadel'])` call.
+     *
+     * @return array{helpers: string[]}
+     */
+    public static function Autoload(): array
+    {
+        return ['helpers' => ['zitadel']];
+    }
 }
