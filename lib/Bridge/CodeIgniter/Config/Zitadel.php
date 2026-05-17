@@ -156,6 +156,9 @@ class Zitadel extends BaseConfig
     /** cURL timeout in seconds for upstream HTTP calls. */
     public int $httpTimeoutSeconds = 5;
 
+    /** Lifetime (seconds) of the __nextgen_pkce PKCE state cookie set during login redirect. */
+    public int $pkceCookieTtlSeconds = 600;
+
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
@@ -189,6 +192,11 @@ class Zitadel extends BaseConfig
         // Set ZITADEL_AUDIENCE explicitly to match a non-standard audience claim.
         $envAudience    = env('ZITADEL_AUDIENCE');
         $this->audience = is_string($envAudience) && $envAudience !== '' ? $envAudience : null;
+
+        $envPkceTtl = env('ZITADEL_PKCE_COOKIE_TTL_SECONDS');
+        if ($envPkceTtl !== null) {
+            $this->pkceCookieTtlSeconds = (int) $envPkceTtl;
+        }
 
         // Derive redirectUri from SERVER_URL when ZITADEL_REDIRECT_URI is absent.
         // This keeps the common case (deploy to a known domain) zero-configuration.

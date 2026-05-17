@@ -44,8 +44,13 @@ readonly class ProxyController
     {
         $proxyPath = rtrim($this->config->proxyPath, '/');
         $suffix    = substr($request->getPathInfo(), strlen($proxyPath));
-        $query     = $request->getQueryString();
-        $target    = $this->config->issuerUrl . $suffix . ($query !== null && $query !== '' ? '?' . $query : '');
+
+        if (str_contains($suffix, '..')) {
+            return new SymfonyResponse('Bad Request', 400, ['Content-Type' => 'text/plain; charset=utf-8']);
+        }
+
+        $query  = $request->getQueryString();
+        $target = $this->config->issuerUrl . $suffix . ($query !== null && $query !== '' ? '?' . $query : '');
 
         $headers = [];
         foreach ($request->headers->all() as $name => $values) {

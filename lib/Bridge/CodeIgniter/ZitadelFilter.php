@@ -89,9 +89,10 @@ class ZitadelFilter implements FilterInterface
                 allowedAlgorithms:  $cfg->allowedAlgorithms,
                 allowedTokenTypes:  $cfg->allowedTokenTypes,
                 audience:           $cfg->audience,
-                clockSkewSeconds:   $cfg->clockSkewSeconds,
-                jwksTtlSeconds:     $cfg->jwksTtlSeconds,
-                httpTimeoutSeconds: $cfg->httpTimeoutSeconds,
+                clockSkewSeconds:     $cfg->clockSkewSeconds,
+                jwksTtlSeconds:       $cfg->jwksTtlSeconds,
+                httpTimeoutSeconds:   $cfg->httpTimeoutSeconds,
+                pkceCookieTtlSeconds: $cfg->pkceCookieTtlSeconds,
             );
         }
         $this->config    = $config;

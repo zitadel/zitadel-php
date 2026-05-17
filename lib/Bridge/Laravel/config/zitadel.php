@@ -46,10 +46,11 @@ return [
     | OAuth / JWT Tuning
     |--------------------------------------------------------------------------
     */
-    'scopes'               => ['openid', 'profile', 'email'],
-    'clock_skew_seconds'   => 5,
-    'jwks_ttl_seconds'     => 300,
-    'http_timeout_seconds' => 5,
+    'scopes'                  => ['openid', 'profile', 'email'],
+    'clock_skew_seconds'      => 5,
+    'jwks_ttl_seconds'        => 300,
+    'http_timeout_seconds'    => 5,
+    'pkce_cookie_ttl_seconds' => env('ZITADEL_PKCE_COOKIE_TTL_SECONDS', 600),
 
     /*
     |--------------------------------------------------------------------------

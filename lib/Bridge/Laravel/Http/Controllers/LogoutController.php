@@ -63,9 +63,16 @@ readonly class LogoutController
         // (e.g. __nextgen_pkce left over from an abandoned login flow).
         foreach ($request->cookies->keys() as $name) {
             $name = (string) $name;
-            if (str_starts_with($name, '__nextgen') && $name !== '__nextgen_auth') {
-                $response = $response->withCookie(cookie($name, '', -2628000, '/', null, $secure, true, false, 'lax'));
+            if (!str_starts_with($name, '__nextgen') || $name === '__nextgen_auth') {
+                continue;
             }
+
+            // Guard against cookie-name injection (RFC 6265 §4.1 token chars only).
+            if (preg_match('/^[A-Za-z0-9_\-]+$/', $name) !== 1) {
+                continue;
+            }
+
+            $response = $response->withCookie(cookie($name, '', -2628000, '/', null, $secure, true, false, 'lax'));
         }
 
         return $response;

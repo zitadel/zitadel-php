@@ -164,9 +164,17 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
         // Public unauthenticated — delete stale cookies
         $di->set('zitadel.claims', static fn () => null);
         foreach (array_keys($_COOKIE) as $name) {
-            if (str_starts_with((string) $name, '__nextgen')) {
-                header($this->buildCookieHeader((string) $name, '', 0, $request->isSecure()), false);
+            $name = (string) $name;
+            if (!str_starts_with($name, '__nextgen')) {
+                continue;
             }
+
+            // Guard against cookie-name injection (RFC 6265 §4.1 token chars only).
+            if (preg_match('/^[A-Za-z0-9_\-]+$/', $name) !== 1) {
+                continue;
+            }
+
+            header($this->buildCookieHeader($name, '', 0, $request->isSecure()), false);
         }
 
         return true;

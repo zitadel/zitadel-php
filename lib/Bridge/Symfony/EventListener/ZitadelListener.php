@@ -228,19 +228,27 @@ readonly class ZitadelListener implements EventSubscriberInterface
         $secure   = $event->getRequest()->isSecure();
 
         foreach ($event->getRequest()->cookies->keys() as $name) {
-            if (str_starts_with((string) $name, '__nextgen')) {
-                $response->headers->setCookie(new Cookie(
-                    (string) $name,
-                    '',
-                    1,
-                    '/',
-                    null,
-                    $secure,
-                    true,
-                    false,
-                    'lax'
-                ));
+            $name = (string) $name;
+            if (!str_starts_with($name, '__nextgen')) {
+                continue;
             }
+
+            // Guard against cookie-name injection (RFC 6265 §4.1 token chars only).
+            if (preg_match('/^[A-Za-z0-9_\-]+$/', $name) !== 1) {
+                continue;
+            }
+
+            $response->headers->setCookie(new Cookie(
+                $name,
+                '',
+                1,
+                '/',
+                null,
+                $secure,
+                true,
+                false,
+                'lax'
+            ));
         }
     }
 
@@ -447,19 +455,27 @@ readonly class ZitadelListener implements EventSubscriberInterface
 
         $secure = $request->isSecure();
         foreach ($request->cookies->keys() as $name) {
-            if (str_starts_with((string) $name, '__nextgen') && (string) $name !== '__nextgen_auth') {
-                $response->headers->setCookie(new Cookie(
-                    (string) $name,
-                    '',
-                    1,
-                    '/',
-                    null,
-                    $secure,
-                    true,
-                    false,
-                    'lax'
-                ));
+            $name = (string) $name;
+            if (!str_starts_with($name, '__nextgen') || $name === '__nextgen_auth') {
+                continue;
             }
+
+            // Guard against cookie-name injection (RFC 6265 §4.1 token chars only).
+            if (preg_match('/^[A-Za-z0-9_\-]+$/', $name) !== 1) {
+                continue;
+            }
+
+            $response->headers->setCookie(new Cookie(
+                $name,
+                '',
+                1,
+                '/',
+                null,
+                $secure,
+                true,
+                false,
+                'lax'
+            ));
         }
 
         return $response;

@@ -119,19 +119,27 @@ readonly class ZitadelMiddleware
 
         // Delete stale __nextgen* cookies
         foreach ($request->cookies->keys() as $name) {
-            if (str_starts_with((string) $name, '__nextgen')) {
-                $response->headers->setCookie(\Symfony\Component\HttpFoundation\Cookie::create(
-                    (string) $name,
-                    '',
-                    1,
-                    '/',
-                    null,
-                    $request->isSecure(),
-                    true,
-                    false,
-                    'lax'
-                ));
+            $name = (string) $name;
+            if (!str_starts_with($name, '__nextgen')) {
+                continue;
             }
+
+            // Guard against cookie-name injection (RFC 6265 §4.1 token chars only).
+            if (preg_match('/^[A-Za-z0-9_\-]+$/', $name) !== 1) {
+                continue;
+            }
+
+            $response->headers->setCookie(\Symfony\Component\HttpFoundation\Cookie::create(
+                $name,
+                '',
+                1,
+                '/',
+                null,
+                $request->isSecure(),
+                true,
+                false,
+                'lax'
+            ));
         }
 
         return $response;
