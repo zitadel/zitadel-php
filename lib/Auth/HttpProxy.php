@@ -61,6 +61,14 @@ final class HttpProxy
      */
     private const int MAX_REQUEST_BODY_BYTES = 1_048_576; // 1 MB
 
+    /**
+     * Maximum allowed size (bytes) of the response body returned by the upstream.
+     * JWKS and token-exchange responses are typically < 10 KB; capping at 1 MB
+     * prevents a malicious or misconfigured upstream from exhausting PHP worker memory
+     * in long-running runtimes (FrankenPHP, RoadRunner, Swoole).
+     */
+    private const int MAX_RESPONSE_BODY_BYTES = 1_048_576; // 1 MB
+
     private function __construct()
     {
     }
@@ -247,6 +255,7 @@ final class HttpProxy
             CURLOPT_TIMEOUT        => $timeoutSeconds,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_MAXFILESIZE    => self::MAX_RESPONSE_BODY_BYTES,
             CURLOPT_HTTPHEADER     => $curlHeaders,
         ];
 
