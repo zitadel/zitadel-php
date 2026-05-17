@@ -304,9 +304,13 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
 
         $code = $request->getQuery('code');
         if (!is_string($code) || $code === '') {
-            $oauthError = $request->getQuery('error_description') ?? $request->getQuery('error') ?? 'Missing code';
+            // Log the OAuth error server-side only — do not reflect it back to the
+            // browser, as an attacker can craft a callback URL with an arbitrary
+            // error_description to create a convincing phishing page (CWE-116).
+            $oauthError = $request->getQuery('error_description') ?? $request->getQuery('error') ?? 'no error param';
+            error_log('[zitadel] Callback missing code: ' . $oauthError);
             header($this->buildCookieHeader('__nextgen_pkce', '', 0, $secure), false);
-            return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
+            return $this->badRequest('Authentication failed — authorization code missing. Please try signing in again.');
         }
 
         try {

@@ -143,6 +143,7 @@ final class JwksCache implements JwksCacheInterface
             CURLOPT_TIMEOUT_MS          => $timeoutSeconds * 1000,
             CURLOPT_SSL_VERIFYPEER      => true,
             CURLOPT_SSL_VERIFYHOST      => 2,
+            CURLOPT_FOLLOWLOCATION      => false, // Never follow redirects; a redirect could downgrade to HTTP
             CURLOPT_MAXFILESIZE         => 1_048_576, // 1 MB — JWKS payloads are typically < 10 KB
         ]);
 

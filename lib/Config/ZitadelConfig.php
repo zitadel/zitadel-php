@@ -426,7 +426,7 @@ readonly class ZitadelConfig
      *
      * Examples:
      *  - redirectUri=http://localhost:3000/zitadel/callback, postLogoutRedirect=/
-     *    → http://localhost:3000
+     *    → http://localhost:3000/
      *  - redirectUri=https://myapp.com/zitadel/callback, postLogoutRedirect=/bye
      *    → https://myapp.com/bye
      *
@@ -440,8 +440,8 @@ readonly class ZitadelConfig
             $origin .= ':' . $parsed['port'];
         }
 
-        $path = $this->postLogoutRedirect;
-
-        return $origin . ($path === '/' ? '' : $path);
+        // Always append $postLogoutRedirect verbatim so the resulting URI exactly
+        // matches what the operator registered in Zitadel (e.g. "https://myapp.com/").
+        return $origin . $this->postLogoutRedirect;
     }
 }

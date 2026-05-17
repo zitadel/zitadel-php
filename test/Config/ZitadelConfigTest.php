@@ -228,13 +228,13 @@ final class ZitadelConfigTest extends TestCase
             postLogoutRedirect:  '/',
         );
 
-        self::assertSame('http://localhost:3000', $config->postLogoutAbsoluteUri());
+        self::assertSame('http://localhost:3000/', $config->postLogoutAbsoluteUri());
     }
 
     /**
-     * When postLogoutRedirect is '/' (the default), the method must return just
-     * the origin (scheme + host [+ port]) without a trailing slash, matching the
-     * root URL registered in Zitadel.
+     * When postLogoutRedirect is '/' (the default), the method must return the
+     * origin with a trailing slash — matching what operators typically register in
+     * Zitadel, which performs an exact-match check on the post_logout_redirect_uri.
      */
     public function testPostLogoutAbsoluteUriWithRootRedirectReturnsOrigin(): void
     {
@@ -246,7 +246,7 @@ final class ZitadelConfigTest extends TestCase
             postLogoutRedirect:  '/',
         );
 
-        self::assertSame('https://myapp.com', $config->postLogoutAbsoluteUri());
+        self::assertSame('https://myapp.com/', $config->postLogoutAbsoluteUri());
     }
 
     /**
@@ -553,7 +553,7 @@ final class ZitadelConfigTest extends TestCase
             postLogoutRedirect: '/',
         );
 
-        self::assertSame('https://example.com:8443', $config->postLogoutAbsoluteUri());
+        self::assertSame('https://example.com:8443/', $config->postLogoutAbsoluteUri());
     }
 
     // ---------------------------------------------------------------------------

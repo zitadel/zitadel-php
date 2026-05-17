@@ -241,7 +241,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
             $response->headers->setCookie(new Cookie(
                 $name,
                 '',
-                1,
+                time() - 3600,
                 '/',
                 null,
                 $secure,
@@ -340,7 +340,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
         // Build the deletion cookie upfront — needed on every error path, including
         // the first two exits where the cookie is absent or tampered (RFC 6265bis
         // requires the Secure flag to match the original cookie to delete it).
-        $pkceDeleteCookie = new Cookie('__nextgen_pkce', '', 1, '/', null, $request->isSecure(), true, false, 'lax');
+        $pkceDeleteCookie = new Cookie('__nextgen_pkce', '', time() - 3600, '/', null, $request->isSecure(), true, false, 'lax');
 
         $pkceValue = $request->cookies->get('__nextgen_pkce');
         if (!is_string($pkceValue) || $pkceValue === '') {
@@ -365,8 +365,12 @@ readonly class ZitadelListener implements EventSubscriberInterface
 
         $code = $request->query->get('code');
         if (!is_string($code) || $code === '') {
-            $oauthError = $request->query->get('error_description') ?? $request->query->get('error') ?? 'Missing code';
-            $response = $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
+            // Log the OAuth error server-side only — do not reflect it back to the
+            // browser, as an attacker can craft a callback URL with an arbitrary
+            // error_description to create a convincing phishing page (CWE-116).
+            $oauthError = $request->query->get('error_description') ?? $request->query->get('error') ?? 'no error param';
+            error_log('[zitadel] Callback missing code: ' . $oauthError);
+            $response = $this->badRequest('Authentication failed — authorization code missing. Please try signing in again.');
             $response->headers->setCookie($pkceDeleteCookie);
             return $response;
         }
@@ -447,7 +451,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
         $response->headers->setCookie(new Cookie(
             '__nextgen_auth',
             '',
-            1,
+            time() - 3600,
             '/',
             null,
             $request->isSecure(),
@@ -471,7 +475,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
             $response->headers->setCookie(new Cookie(
                 $name,
                 '',
-                1,
+                time() - 3600,
                 '/',
                 null,
                 $secure,

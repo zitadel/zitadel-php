@@ -332,8 +332,12 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
         }
 
         if (!is_string($code) || $code === '') {
-            $oauthError = $params['error_description'] ?? $params['error'] ?? 'Missing code';
-            return $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.")
+            // Log the OAuth error server-side only — do not reflect it back to the
+            // browser, as an attacker can craft a callback URL with an arbitrary
+            // error_description to create a convincing phishing page (CWE-116).
+            $oauthError = $params['error_description'] ?? $params['error'] ?? 'no error param';
+            error_log('[zitadel] Callback missing code: ' . $oauthError);
+            return $this->badRequest('Authentication failed — authorization code missing. Please try signing in again.')
                 ->withAddedHeader('Set-Cookie', $pkceDeleteCookie);
         }
 

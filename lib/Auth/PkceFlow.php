@@ -126,6 +126,7 @@ final class PkceFlow
             CURLOPT_TIMEOUT        => $config->httpTimeoutSeconds,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_FOLLOWLOCATION => false, // Never follow redirects; a redirect could downgrade to HTTP
             CURLOPT_MAXFILESIZE    => 524_288, // 512 KB — token responses are typically < 2 KB
             CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
         ]);

@@ -335,8 +335,12 @@ class ZitadelFilter implements FilterInterface
 
         $code = $request->getGet('code');
         if (!is_string($code) || $code === '') {
-            $oauthError = $request->getGet('error_description') ?? $request->getGet('error') ?? 'Missing code';
-            $response = $this->badRequest("Authentication failed — {$oauthError}. Please try signing in again.");
+            // Log the OAuth error server-side only — do not reflect it back to the
+            // browser, as an attacker can craft a callback URL with an arbitrary
+            // error_description to create a convincing phishing page (CWE-116).
+            $oauthError = $request->getGet('error_description') ?? $request->getGet('error') ?? 'no error param';
+            log_message('error', '[zitadel] Callback missing code: ' . $oauthError);
+            $response = $this->badRequest('Authentication failed — authorization code missing. Please try signing in again.');
             $response->deleteCookie('__nextgen_pkce', '', '/', '', $secure);
             return $response;
         }
@@ -394,7 +398,7 @@ class ZitadelFilter implements FilterInterface
 
         $params   = http_build_query(['client_id' => $this->config->clientId, 'post_logout_redirect_uri' => $this->config->postLogoutAbsoluteUri()]);
         $response = response()->redirect($this->config->endSessionEndpoint() . '?' . $params);
-        $response->setCookie('__nextgen_auth', '', 1, '', '/', '', $request->isSecure(), true, 'Lax');
+        $response->setCookie('__nextgen_auth', '', 0, '', '/', '', $request->isSecure(), true, 'Lax');
 
         foreach (array_keys((array) $request->getCookie()) as $name) {
             $name = (string) $name;
