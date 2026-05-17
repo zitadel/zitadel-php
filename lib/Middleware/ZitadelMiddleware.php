@@ -58,6 +58,13 @@ use Zitadel\Sdk\Config\ZitadelConfig;
 readonly class ZitadelMiddleware implements MiddlewareInterface
 {
     /**
+     * Mezzio stores the matched route result under this request attribute key.
+     * Extracted as a constant to survive a future Mezzio package rename without
+     * a silent runtime breakage that only manifests on protected routes.
+     */
+    private const string MEZZIO_ROUTE_RESULT = 'Mezzio\Router\RouteResult';
+
+    /**
      * @param ZitadelConfig            $config          Middleware configuration.
      * @param TokenValidator           $validator       JWT validator backed by the JWKS cache.
      * @param ResponseFactoryInterface $responseFactory PSR-17 factory for redirect responses.
@@ -344,7 +351,7 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
 
         $response = $this->responseFactory->createResponse(302)->withHeader('Location', $authUrl);
 
-        return PkceStateCookie::write($response, $verifier, $state, $next, $this->config->cookieSecret, $isSecure);
+        return PkceStateCookie::write($response, $verifier, $state, $next, $this->config->cookieSecret, $isSecure, $this->config->pkceCookieTtlSeconds);
     }
 
     /**
@@ -417,7 +424,7 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
     private function hasAllowAnonymous(ServerRequestInterface $request): bool
     {
         // RouteResult attribute is set by Mezzio's RouteMiddleware
-        $routeResult = $request->getAttribute('Mezzio\Router\RouteResult');
+        $routeResult = $request->getAttribute(self::MEZZIO_ROUTE_RESULT);
         if ($routeResult !== null && method_exists($routeResult, 'getMatchedRoute')) {
             $route = $routeResult->getMatchedRoute();
             if ($route !== null && method_exists($route, 'getOptions')) {
@@ -466,7 +473,7 @@ readonly class ZitadelMiddleware implements MiddlewareInterface
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'
             . '<h1>Authentication Error</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<p><a href="javascript:history.back()">Go back</a></p>'
+            . '<p><a href="/">Go to homepage</a></p>'
             . '</body></html>';
 
         $response = $this->responseFactory->createResponse(400);

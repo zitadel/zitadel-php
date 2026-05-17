@@ -138,6 +138,7 @@ final class PkceStateCookie
      * @param string            $next     Original URL the user was navigating to.
      * @param string            $secret   Cookie encryption key (64-char hex string → 32 raw bytes).
      * @param bool              $secure   Whether to set the Secure flag.
+     * @param int               $ttl      Cookie lifetime in seconds. Defaults to {@see COOKIE_TTL}.
      * @return ResponseInterface New response with `Set-Cookie` header added.
      * @throws \InvalidArgumentException When `$secret` is not a valid 64-character hex string.
      */
@@ -148,10 +149,11 @@ final class PkceStateCookie
         string $next,
         string $secret,
         bool $secure,
+        int $ttl = self::COOKIE_TTL,
     ): ResponseInterface {
         $value  = self::encrypt($verifier, $state, $next, $secret);
         $cookie = self::COOKIE_NAME . '=' . $value
-            . '; Max-Age=' . self::COOKIE_TTL
+            . '; Max-Age=' . $ttl
             . '; Path=/'
             . '; HttpOnly'
             . '; SameSite=Lax'

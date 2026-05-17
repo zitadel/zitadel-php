@@ -103,7 +103,7 @@ readonly class ZitadelMiddleware
                 ->cookie(
                     '__nextgen_pkce',
                     $cookie,
-                    10,
+                    (int) ceil($this->config->pkceCookieTtlSeconds / 60),
                     '/',
                     null,
                     $request->isSecure(),

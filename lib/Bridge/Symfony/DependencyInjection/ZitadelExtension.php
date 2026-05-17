@@ -73,6 +73,7 @@ final class ZitadelExtension extends Extension
                 $config['clock_skew_seconds'],
                 $config['jwks_ttl_seconds'],
                 $config['http_timeout_seconds'],
+                $config['pkce_cookie_ttl_seconds'],
                 $config['jwks_path'],
                 $config['authorization_path'],
                 $config['token_path'],
@@ -83,8 +84,12 @@ final class ZitadelExtension extends Extension
             ->setShared(true)
             ->setPublic(false);
 
-        $container->setAlias(JwksCacheInterface::class, JwksCache::class)
-            ->setPublic(false);
+        // Only register the default alias when the user hasn't already bound a custom
+        // implementation (e.g. a Redis-backed cache) to the interface.
+        if (!$container->has(JwksCacheInterface::class)) {
+            $container->setAlias(JwksCacheInterface::class, JwksCache::class)
+                ->setPublic(false);
+        }
 
         $container->register(TokenValidator::class, TokenValidator::class)
             ->setShared(true)

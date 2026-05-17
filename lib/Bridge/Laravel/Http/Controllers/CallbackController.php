@@ -139,7 +139,7 @@ readonly class CallbackController
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'
             . '<h1>Authentication Error</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<p><a href="javascript:history.back()">Go back</a></p>'
+            . '<p><a href="/">Go to homepage</a></p>'
             . '</body></html>';
 
         return response($html, 400)->header('Content-Type', 'text/html; charset=utf-8');

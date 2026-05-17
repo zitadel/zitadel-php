@@ -222,7 +222,7 @@ readonly class ZitadelPlugin
         $response->setStatusCode(302, 'Found');
         $response->setHeader('Location', $authUrl);
         $response->setContent('');
-        $response->setRawHeader($this->buildCookieHeader('__nextgen_pkce', $cookie, 600, $request->isSecure()));
+        $response->setRawHeader($this->buildCookieHeader('__nextgen_pkce', $cookie, $this->config->pkceCookieTtlSeconds, $request->isSecure()));
         $di->set('response', $response);
 
         // Pre-populate the view content with '' so that Application::handle()
@@ -493,7 +493,7 @@ readonly class ZitadelPlugin
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'
             . '<h1>Authentication Error</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<p><a href="javascript:history.back()">Go back</a></p>'
+            . '<p><a href="/">Go to homepage</a></p>'
             . '</body></html>';
 
         $response = new Response();

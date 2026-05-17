@@ -418,7 +418,7 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
 
         $response = $this->responseFactory->createResponse(302)->withHeader('Location', $authUrl);
 
-        return PkceStateCookie::write($response, $verifier, $state, $next, $this->config->cookieSecret, $isSecure);
+        return PkceStateCookie::write($response, $verifier, $state, $next, $this->config->cookieSecret, $isSecure, $this->config->pkceCookieTtlSeconds);
     }
 
     /**
@@ -486,7 +486,7 @@ final readonly class ZitadelMiddleware implements MiddlewareInterface
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'
             . '<h1>Authentication Error</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<p><a href="javascript:history.back()">Go back</a></p>'
+            . '<p><a href="/">Go to homepage</a></p>'
             . '</body></html>';
 
         $response = $this->responseFactory->createResponse(400);

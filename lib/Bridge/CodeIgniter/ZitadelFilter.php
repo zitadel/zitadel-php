@@ -170,7 +170,7 @@ class ZitadelFilter implements FilterInterface
             $response->setCookie(
                 '__nextgen_pkce',
                 $cookie,
-                600,
+                $this->config->pkceCookieTtlSeconds,
                 '',
                 '/',
                 '',
@@ -452,7 +452,7 @@ class ZitadelFilter implements FilterInterface
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'
             . '<h1>Authentication Error</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<p><a href="javascript:history.back()">Go back</a></p>'
+            . '<p><a href="/">Go to homepage</a></p>'
             . '</body></html>';
 
         return service('response')

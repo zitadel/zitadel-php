@@ -151,7 +151,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
                 $this->config->cookieSecret
             );
 
-            header($this->buildCookieHeader('__nextgen_pkce', $cookie, 600, $request->isSecure()), false);
+            header($this->buildCookieHeader('__nextgen_pkce', $cookie, $this->config->pkceCookieTtlSeconds, $request->isSecure()), false);
 
             $response = new Response();
             $response->redirect($authUrl, true);
@@ -413,7 +413,7 @@ readonly class ZitadelMicroPlugin implements MiddlewareInterface
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'
             . '<h1>Authentication Error</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<p><a href="javascript:history.back()">Go back</a></p>'
+            . '<p><a href="/">Go to homepage</a></p>'
             . '</body></html>';
 
         $response = new Response();

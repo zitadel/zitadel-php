@@ -193,7 +193,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
         $response->headers->setCookie(new Cookie(
             '__nextgen_pkce',
             $cookie,
-            time() + 600,
+            time() + $this->config->pkceCookieTtlSeconds,
             '/',
             null,
             $request->isSecure(),
@@ -530,7 +530,7 @@ readonly class ZitadelListener implements EventSubscriberInterface
     {
         $html = '<!DOCTYPE html><html><head><title>Authentication Error</title></head><body>'
             . '<h1>Authentication Error</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<p><a href="javascript:history.back()">Go back</a></p>'
+            . '<p><a href="/">Go to homepage</a></p>'
             . '</body></html>';
 
         return new Response($html, 400, ['Content-Type' => 'text/html; charset=utf-8']);
